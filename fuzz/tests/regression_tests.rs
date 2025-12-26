@@ -440,3 +440,10 @@ fn fuzz_invalid_range_condition_push_though_modulo() {
    verify_repro(ops, vec![0, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0]);
 }
 
+
+#[test]
+fn fuzz_missing_value_materialization_in_ctr_increment_deopt() {
+   let ops = vec![ DigitSum, DigitSum, Increment, LenSum, Jump, Increment, Increment, Increment, Increment, Increment, BulkXor, Jump, Increment, Pop, LenSum, Jump, Increment, Increment, Increment, Increment, Increment, Increment, Increment, Increment, Praise, Roll, Increment, BulkXor, ];
+
+   verify_repro(ops, vec![0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+}

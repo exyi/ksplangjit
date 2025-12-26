@@ -808,8 +808,11 @@ impl<'a> Compiler<'a> {
     }
 
     fn lower_ops_increment(&mut self, instr: &OptInstr, condition: Condition<ValueId>) {
-        let cond = self.lower_condition(condition);
+        let cond = self.lower_condition(condition.clone());
         let mut deopt: Vec<OsmibyteOp<RegId>> = vec![];
+        for (value, reg) in condition.regs().into_iter().zip(cond.regs()) {
+            deopt.extend(self.mk_materialization(value, reg));
+        }
         let mut deopt_const: i64 = 0;
         for &value in &instr.inputs {
             if let Some(c) = self.g.get_constant(value) {
