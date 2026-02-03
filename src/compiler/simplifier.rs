@@ -1557,6 +1557,7 @@ pub fn simplify_instr(cfg: &mut GraphBuilder, mut i: OptInstr) -> (OptInstr, Opt
             OptOp::DigitSum if *ranges[0].start() > -10 && *ranges[0].end() < 10 => {
                 i.op = OptOp::AbsSub;
                 i.inputs.insert(0, ValueId::C_ZERO);
+                continue;
             }
             OptOp::DigitSum if *abs_range(&ranges[0]).start() / 10 * 10 + 9 >= *abs_range(&ranges[0]).end() => {
                 // CS(x) if x >= 120 and x <= 129
@@ -1575,6 +1576,7 @@ pub fn simplify_instr(cfg: &mut GraphBuilder, mut i: OptInstr) -> (OptInstr, Opt
                 } else {
                     i.op = OptOp::Add;
                 }
+                continue;
             }
 
             _ => { }
