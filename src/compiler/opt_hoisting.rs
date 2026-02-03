@@ -142,12 +142,22 @@ pub fn hoist_up(g: &mut GraphBuilder, predecessor: BlockId) -> bool {
             g.block_mut_(predecessor).instructions
                 .insert(new_iid.instr_ix(), hoisted_instr.clone());
 
-            for iid in instr_ids.iter() {
+            for &iid in instr_ids.iter() {
+                // g.remove_instruction(iid, false);
                 let block = g.block_mut_(iid.block_id());
                 let instr = block.instructions.remove(&iid.instr_ix()).unwrap();
                 // remove from value-numbering to avoid crash on re-use
-                if let Some(vn) = g.value_index.get_mut(&(instr.op, instr.inputs)) {
-                    vn.retain(|x| x.1 != *iid);
+                if let Some(vn) = g.value_index.get_mut(&(instr.op.clone(), instr.inputs.clone())) {
+                    vn.retain(|x| x.1 != iid);
+                }
+                // update used_at for the inputs
+                for inp in instr.iter_inputs() {
+                    if let Some(info) = g.values.get_mut(&inp) {
+                        info.used_at.remove(&iid);
+                        // if info.used_at.is_empty() { // TODO:
+                        //     g.stack.poped_values.push(inp);
+                        // }
+                    }
                 }
             }
 

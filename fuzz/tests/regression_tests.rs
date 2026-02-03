@@ -837,3 +837,9 @@ fn fuzz_wrong_assert_condition_in_deopt_stackswap_revert() {
     let ops = vec![ DigitSum, DigitSum, Praise, LenSum, DigitSum, LSwap, Modulo, DigitSum, LSwap, Max, Max, Max, Pop, Qeq, GcdN, DigitSum, Funkcia, LSwap, Modulo, DigitSum, LSwap, Qeq, LenSum, GcdN, Increment, DigitSum, LSwap, Remainder, Swap, LSwap, DigitSum, Funkcia, Median ];
     verify_repro_const(ops, vec![5], vec![1577508270635933695]);
 }
+
+#[test]
+fn fuzz_hoisting_stale_used_at_references() {
+    let ops = vec![ DigitSum, DigitSum, DigitSum, Praise, LenSum, Increment, Bitshift, LSwap, Increment, DigitSum, LSwap, Swap, BranchIfZero, Increment, LenSum, Max, LenSum, LSwap, Increment, DigitSum, LSwap, Swap, Increment, Increment, Increment, Bitshift, LSwap, Increment, DigitSum, Swap, Increment, Increment, DigitSum, Call ];
+    verify_repro_const(ops, vec![0], vec![-22951322395474513]);
+}

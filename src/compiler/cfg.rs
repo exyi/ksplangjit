@@ -1425,35 +1425,33 @@ impl GraphBuilder {
     }
 
     pub fn remove_instruction(&mut self, id: InstrId, force_value_removal: bool) {
-        let InstrId(block_id, instr_ix) = id.clone();
-        let Some(instr) = self.get_instruction(id) else {
+        let InstrId(block_id, instr_ix) = id;
+        let Some(instr) = self.blocks[block_id.0 as usize].instructions.remove(&instr_ix) else {
             return;
         };
-        let args: SmallVec<[ValueId; 5]> = instr.iter_inputs().filter(|r| r.is_computed()).collect();
-        let val_id = instr.out;
-        if let Some(out_val) = self.values.get(&val_id) {
-            assert!(val_id.is_computed());
-
-            if !force_value_removal {
-                assert!(out_val.used_at.is_empty(), "Cannot remove instruction {:?} because its output value {:?} is still used at {:?}", id, val_id, out_val.used_at);
-            }
+        if let Some(out_val) = self.values.get(&instr.out) {
+            assert!(instr.out.is_computed());
 
             //remove from value_index (value numbering)
             let vi_key = (instr.op.clone(), instr.inputs.clone());
             if let Some(vals) = self.value_index.get_mut(&vi_key) {
-                vals.retain(|(v, _i)| *v != val_id);
+                vals.retain(|(_v, i)| *i != id);
                 if vals.is_empty() {
                     self.value_index.remove(&vi_key);
                 }
             }
-            self.values.remove(&val_id);
-        }
-        self.blocks[block_id.0 as usize].instructions.remove(&instr_ix);
 
-        for arg in args {
+            if out_val.assigned_at == Some(id) { // already in the process of replacing this instr with another one
+                if !force_value_removal {
+                    assert!(out_val.used_at.is_empty(), "Cannot remove instruction {instr} because its output value {:?} is still used at {:?}", instr.out, out_val.used_at);
+                }
+                self.values.remove(&instr.out);
+            }
+        }
+
+        for arg in instr.iter_inputs() {
             self.remove_used_at(arg, id);
         }
-
     }
 
     fn remove_block_parameter(&mut self, block_id: BlockId, p: ValueId) {
