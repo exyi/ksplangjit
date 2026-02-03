@@ -1752,10 +1752,10 @@ impl OptimizingVM {
         p.instr_limit = self.conf.adhoc_instr_limit as usize;
         p.interpret();
         let g = p.g;
-        let instr_interpreted_count = p.instr_interpreted_count;
+        let step_count = p.step_count;
         let t = p.tracer;
 
-        self.save_block(&mut s, start_ip, reversed, g, instr_interpreted_count, Some(t));
+        self.save_block(&mut s, start_ip, reversed, g, step_count, Some(t));
 
         (s, Ok(()))
     }
@@ -1773,7 +1773,7 @@ impl OptimizingVM {
         p.instr_limit = self.conf.start_instr_limit as usize;
         p.interpret();
 
-        self.save_block(s, 0, false, p.g, p.instr_interpreted_count, None);
+        self.save_block(s, 0, false, p.g, p.step_count, None);
     }
 
     fn save_block(&self, s: &mut State<'_, Optimizer>, start_ip: usize, reversed: bool, cfg: GraphBuilder, gain_from: usize, tracer: Option<ActualTracer>) {

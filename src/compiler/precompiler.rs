@@ -57,8 +57,8 @@ pub struct Precompiler<'a, TP: TraceProvider> {
     pub g: GraphBuilder,
     // deopt_info: HashMap<u32, DeoptInfo<u32>>,
     pub position: usize,
-    pub instr_interpreted_count: usize,
-    pub interpretation_limit: usize,
+    pub step_count: usize,
+    pub step_limit: usize,
     pub soften_limits: bool,
     pub bb_limit: usize,
     pub instr_limit: usize,
@@ -92,7 +92,7 @@ impl<'a, TP: TraceProvider> Precompiler<'a, TP> {
         initial_stack_size: usize,
         reversed_direction: bool,
         initial_position: usize,
-        interpretation_limit: usize,
+        step_limit: usize,
         soften_limits: bool,
         termination_ip: Option<usize>,
         initial_graph: GraphBuilder,
@@ -104,9 +104,9 @@ impl<'a, TP: TraceProvider> Precompiler<'a, TP> {
             reversed_direction,
             initial_position,
             position: initial_position,
-            interpretation_limit,
+            step_limit,
             soften_limits,
-            instr_interpreted_count: 0,
+            step_count: 0,
             bb_limit: usize::MAX,
             instr_limit: usize::MAX,
             g: initial_graph,
@@ -1266,16 +1266,16 @@ impl<'a, TP: TraceProvider> Precompiler<'a, TP> {
         }
     }
 
-    fn interpretation_soft_limit(&self) -> usize { self.interpretation_limit }
-    fn interpretation_hard_limit(&self) -> usize {
-        if self.soften_limits { 2 * self.interpretation_limit } else { self.interpretation_limit } }
+    fn steps_soft_limit(&self) -> usize { self.step_limit }
+    fn steps_hard_limit(&self) -> usize {
+        if self.soften_limits { 2 * self.step_limit } else { self.step_limit } }
 
     fn branching_limit_exhausted(&self) -> bool {
         let instr_count = self.g.reachable_blocks().map(|b| b.instructions.len()).sum::<usize>();
         self.g.reachable_blocks().count() >= self.bb_limit ||
         instr_count >= self.instr_limit ||
         // self.instr_interpreted_count * 2 > self.interpretation_soft_limit && !self.pending_branches.is_empty() ||
-        self.instr_interpreted_count > self.interpretation_soft_limit()
+        self.step_count > self.steps_soft_limit()
     }
 
     // fn condition_cnf(&mut self, cnf: &[Vec<Condition<ValueId>>]) -> Condition<ValueId> { if cnf.len() == 0 { return Condition::True; }
@@ -1309,7 +1309,7 @@ impl<'a, TP: TraceProvider> Precompiler<'a, TP> {
 
     fn interpret_block(&mut self) -> () {
         let baseline_instr_count: usize = self.g.reachable_blocks().filter(|b| b.id != self.g.current_block).map(|b| b.instructions.len()).sum();
-        let baseline_interpret_count = self.instr_interpreted_count;
+        let baseline_step_count = self.step_count;
 
         loop {
             self.g.stack.check_invariants();
@@ -1352,7 +1352,7 @@ impl<'a, TP: TraceProvider> Precompiler<'a, TP> {
                 }
                 break;
             }
-            if self.instr_interpreted_count >= self.interpretation_hard_limit() ||
+            if self.step_count >= self.steps_hard_limit() ||
                self.g.stack.stack.len() > 250 ||
                (baseline_instr_count + self.g.current_block_ref().instructions.len()) / 2 > self.instr_limit
             {
@@ -1361,7 +1361,7 @@ impl<'a, TP: TraceProvider> Precompiler<'a, TP> {
                 }
                 break;
             }
-            if self.instr_interpreted_count >= self.interpretation_soft_limit() || self.g.stack.stack.len() > 200 {
+            if self.step_count >= self.steps_soft_limit() || self.g.stack.stack.len() > 200 {
                 let top = self.g.val_range_at(self.g.stack.peek().unwrap_or(ValueId(0)), self.g.next_instr_id());
                 let op = &self.ops[self.position];
                 // terminate if we don't seem to be building a constants
@@ -1376,14 +1376,14 @@ impl<'a, TP: TraceProvider> Precompiler<'a, TP> {
             }
 
             assert!(self.conf.yield_interval > 0);
-            if self.instr_interpreted_count - baseline_interpret_count >= self.conf.yield_interval as usize &&
+            if self.step_count - baseline_step_count >= self.conf.yield_interval as usize &&
                 self.pending_branches.len() > 0 &&
-                (self.is_good_yield_point() || (self.instr_interpreted_count - baseline_interpret_count).saturating_sub(512) / 2 > self.conf.yield_interval as usize)
+                (self.is_good_yield_point() || (self.step_count - baseline_step_count).saturating_sub(512) / 2 > self.conf.yield_interval as usize)
             {
                 // yield to 1. avoid getting stuck in long branchless blocks
                 //          2. get opportunities for merges
                 if self.conf.should_log(7) {
-                    println!("  Yielding at IP={} after {} instructions to let other branches execute", self.position, self.instr_interpreted_count - baseline_interpret_count);
+                    println!("  Yielding at IP={} after {} instructions to let other branches execute", self.position, self.step_count - baseline_step_count);
                 }
 
                 let stack_snapshot = self.g.stack.save();
@@ -1412,7 +1412,7 @@ impl<'a, TP: TraceProvider> Precompiler<'a, TP> {
                 break
             }
 
-            self.instr_interpreted_count += 1;
+            self.step_count += 1;
 
             if self.conf.should_log(20) {
                 let trace_results_fmt: String =
@@ -1444,7 +1444,7 @@ impl<'a, TP: TraceProvider> Precompiler<'a, TP> {
 
             if let PrecompileStepResult::NevimJakChteloByToKonstantu(ref needed) = result {
                 if let Some(branches) = self.resolve_constants(needed) {
-                    self.instr_interpreted_count -= 1;
+                    self.step_count -= 1;
                     self.g.current_block_mut().ksplang_instr_count -= 1;
                     result = PrecompileStepResult::Branching(branches);
                 }
@@ -1481,7 +1481,7 @@ impl<'a, TP: TraceProvider> Precompiler<'a, TP> {
                             println!("    (but will deopt due to limits [bbs {} <= {}, instr {} <= {}, interpreted {} <= {}])",
                                 self.g.reachable_blocks().count(), self.bb_limit,
                                 baseline_instr_count + self.g.current_block_ref().incoming_jumps.len(), self.instr_limit,
-                                self.instr_interpreted_count, self.interpretation_soft_limit(),
+                                self.step_count, self.steps_soft_limit(),
                             );
                         }
                     }
