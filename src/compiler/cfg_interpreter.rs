@@ -299,7 +299,7 @@ fn revert_stack_effect(
         OptOp::StackSwap => {
             assert_eq!(instr.inputs.len(), 2);
             let idx = resolve_value(g, values, instr.inputs[0]);
-            assert!(idx >= 0 && idx as usize >= stack.len(), "index {idx} out of range {} ({instr})", stack.len());
+            assert!(idx >= 0 && (idx as usize) < stack.len(), "index {idx} out of range {} ({instr})", stack.len());
 
             let replacement = resolve_value(g, values, instr.inputs[1]);
             assert_eq!(stack[idx as usize], replacement);

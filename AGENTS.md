@@ -1,6 +1,6 @@
 # KsplangJIT dev tips
 
-Project is **KsplangJIT** - high-performance trace-assisted JIT runtime for [ksplang](../ksplang_en.md), a stack-based esoteric language.
+Project is **KsplangJIT** - high-performance trace-assisted JIT runtime for [ksplang](ksplang_en.md), a stack-based esoteric language.
 The JIT compiles into an SSA-based CFG and then into bytecode (Osmibytecode / OBC).
 
 ## Components
@@ -20,12 +20,17 @@ The JIT compiles into an SSA-based CFG and then into bytecode (Osmibytecode / OB
 ## Concepts
 
 - CFG is SSA, but we use block parameters instead of phi nodes
-- ValueId is used for all values. Small values are predefined as ValueId::C_ONE, other must be created with cfg.store_constant(100)
+- ValueId is used for all values. Small constants are predefined as ValueId::C_ONE, other must be created with cfg.store_constant(100)
 - CFG can contain deopts:
   - deopt means that we revert to the state in previous Checkpoint instruction
   - it does not necessarily mean error
 - error are (for now) always interpreted as deopt
   - we let the reference interpreter handle failures if they ought to happen
+- precompiler has a local symbolic stack of `ValueId`s, which will be a small subset of the execution stack at runtime
+  - execution stack may be very large, it's the only memory programs have
+  - `Pop` op moves value from execution stack to symbolic stack
+  - we can perform optimizations on the symbolic values
+  - StackSwap, StackRead instructions read from the execution stack and deopt if it would touch the execution stack (as it invalidates optimizations)
 
 ## Testing
 
@@ -33,7 +38,7 @@ The JIT compiles into an SSA-based CFG and then into bytecode (Osmibytecode / OB
 
 We have fuzz tests verying that JIT behaves the same as reference interpreter. It's run with `cargo +nightly fuzz run fuzz_target_2`, agent SHOULD NOT start this.
 
-We make normal unit tests from fuzz crashes, its in fuzz/tests/regression_tests.rs.
+We make unit tests from fuzz crashes, its in fuzz/tests/regression_tests.rs.
 First named fuzz_repro, then renamed based on the bug which needed to be fixed.
 
 If you are tasked with fixing fuzz_repro, run it with `cargo test -p ksplang-fuzz fuzz_repro` (possibly with 255 verbosity).
@@ -51,19 +56,22 @@ Key env variables:
 
 ## Code Conventions
 
-- simpler is better
+- Simpler is better
 - IRange/URange (type aliases for `RangeInclusive<i64/u64>`)
-- never run autoformatter
-- import `FxHashMap` as `HashMap` (from `rustc-hash`)
+- Do not handle unnecessary edge cases. If unsure if it can happen, add assert! / .unwrap / unreachable!. Fuzzer will either give us test case or prove it can't happen.
+- Use debug_assert for more expensive expressions or in super hot code (i.e., osmibytecode vm)
+- Never run autoformatter
+- Import `FxHashMap` as `HashMap`. Use BTreeMap if performance isn't critical or set is unlikely to be big
 - `SmallVec` and `ArrayVec` for small, inline-allocated collections, but don't bother in colder code
 
 ## Debugging Tips
 
 - println! and dbg! and search
+- Add (debug_)?assert! if it seems something is getting into invalid state
 - CFG, Osmibytecode and many other structs implement `Display` for readable IR dumps
 - most fuzz_repro can be fixed very simply
 
 ## Other
 
 Ask when not sure! I'll revert your changes if you do more changes than I expect.
-Don't try to write ksplang programs, no human can do it without additional tooling
+Don't try to write ksplang programs, no human can do it without additional tooling; you can copy existing fragments or build CFGs directly for testing.
