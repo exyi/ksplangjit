@@ -221,6 +221,7 @@ impl StackStateTracker {
         self.rebuild_index();
     }
     pub fn clear(&mut self) {
+        self.poped_values.extend(self.stack.iter().copied().filter(ValueId::is_computed));
         self.stack.clear();
         self.lookup.clear();
     }

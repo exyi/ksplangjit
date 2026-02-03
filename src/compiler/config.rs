@@ -24,6 +24,7 @@ pub struct JitConfig {
     pub trace_trigger_count: u32,
     pub min_gain_const: u32,
     pub min_gain_mul: u32,
+    pub yield_interval: u32,
 
     pub shrinker_final_verbosity: u8,
 
@@ -80,7 +81,7 @@ where
 
 fn create_config() -> JitConfig {
     let verbosity = parse_env("KSPLANGJIT_VERBOSITY", 1);
-    let c = JitConfig {
+    let mut c = JitConfig {
         verbosity,
         soften_limits: parse_env("KSPLANGJIT_SOFTEN_LIMITS", true),
         start_interpret_limit: parse_env("KSPLANGJIT_START_LIMIT", 50_000),
@@ -102,11 +103,15 @@ fn create_config() -> JitConfig {
         trace_trigger_count: parse_env("KSPLANGJIT_TRIGGER_COUNT", 3),
         min_gain_const: parse_env("KSPLANGJIT_MIN_GAIN_CONST", 5),
         min_gain_mul: parse_env("KSPLANGJIT_MIN_GAIN_MUL", 2),
+        yield_interval: parse_env("KSPLANGJIT_YIELD_INTERVAL", 10),
 
         shrinker_final_verbosity: parse_env("KSPLANGJIT_SHRINKER_FINAL_VERBOSITY", verbosity),
 
         info_dump_dir: std::env::var("KSPLANGJIT_DUMPDIR").ok().filter(|c| !c.is_empty())
     };
+    if c.yield_interval == 0 {
+        c.yield_interval = u32::MAX;
+    }
 
     #[cfg(not(debug_assertions))] {
         if c.verbosity > 16 {

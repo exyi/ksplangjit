@@ -4,7 +4,7 @@ use rustc_hash::{FxHashMap as HashMap};
 use num_integer::Integer;
 use smallvec::{SmallVec, smallvec};
 
-use crate::{compiler::{cfg::{GraphBuilder, StackState}, config::{JitConfig, get_config}, ops::{BlockId, InstrId, OpEffect, OptOp, ValueId}, opt_hoisting::hoist_up, osmibytecode::Condition, range_ops::{IRange, eval_combi, range_div, range_num_digits}, simplifier::{self, simplify_cond}, utils::{FULL_RANGE, abs_range, add_range, eval_combi_u64, intersect_range, range_2_i64, sort_tuple, sub_range}}, digit_sum::digit_sum, funkcia::funkcia, ops::Op, vm::{self, OperationError, QuadraticEquationResult, solve_quadratic_equation}};
+use crate::{compiler::{cfg::{GraphBuilder, StackState}, config::{JitConfig, get_config}, ops::{BlockId, InstrId, OpEffect, OptInstr, OptOp, ValueId}, opt_hoisting::hoist_up, osmibytecode::Condition, range_ops::{IRange, eval_combi, range_div, range_num_digits}, simplifier::{self, simplify_cond}, utils::{FULL_RANGE, abs_range, add_range, eval_combi_u64, intersect_range, range_2_i64, sort_tuple, sub_range}}, digit_sum::digit_sum, funkcia::funkcia, ops::Op, vm::{self, OperationError, QuadraticEquationResult, solve_quadratic_equation}};
 
 pub trait TraceProvider {
     // type TracePointer
@@ -1290,12 +1290,50 @@ impl<'a, TP: TraceProvider> Precompiler<'a, TP> {
     //         }
     // }
 
+    fn find_mergeable_pending_branch_at(&self, target: usize, stack_depth: u32, stack_len: usize) -> Option<usize> {
+        self.pending_branches.iter().position(|pb|
+            pb.target == target &&
+            pb.reversed_direction == self.reversed_direction &&
+            pb.stack_snapshot[0].depth == stack_depth &&
+            pb.stack_snapshot[0].stack.len() == stack_len
+        )
+    }
+
+    fn is_good_yield_point(&self) -> bool {
+        let top = self.g.val_range_at(self.g.stack.peek().unwrap_or(ValueId(0)), self.g.next_instr_id());
+        let op = &self.ops[self.position];
+        // Bad yield point if we seem to be building constants or the next instruction will remove stuff from stack for free
+        top.start().abs_diff(*top.end()) > 1_000 &&
+            matches!(op, Op::DigitSum)
+    }
+
     fn interpret_block(&mut self) -> () {
         let baseline_instr_count: usize = self.g.reachable_blocks().filter(|b| b.id != self.g.current_block).map(|b| b.instructions.len()).sum();
+        let baseline_interpret_count = self.instr_interpreted_count;
 
         loop {
             self.g.stack.check_invariants();
             self.g.set_program_position(Some(self.position));
+
+            // check if we can merge with an existing pending branch at current position
+            if let Some(merge_idx) = self.find_mergeable_pending_branch_at(self.position, self.g.stack.stack_depth, self.g.stack.stack.len()) {
+                let pb = &self.pending_branches[merge_idx];
+                if self.conf.should_log(10) {
+                    println!("  Merging at IP={} with pending branch to {}", self.position, pb.to_bb);
+                }
+
+                let stack_snapshot = self.g.stack.save();
+                let branch = self.g.push_instr(OptOp::Jump(Condition::True, pb.to_bb), &stack_snapshot.stack, false, None, None).1;
+                if let Some(&mut OptInstr { id: branch_id, .. }) = branch {
+                    let pb = &mut self.pending_branches[merge_idx];
+                    pb.from.push(branch_id);
+                    pb.stack_snapshot.push(stack_snapshot);
+                    pb.assumes.push(vec![]);
+                }
+                assert!(self.g.current_block_mut().is_terminated);
+                break
+            }
+
             if self.g.current_block_ref().is_terminated {
                 if self.conf.should_log(2) {
                     println!("end interpret_block: BB is terminated");
@@ -1314,7 +1352,10 @@ impl<'a, TP: TraceProvider> Precompiler<'a, TP> {
                 }
                 break;
             }
-            if self.instr_interpreted_count >= self.interpretation_hard_limit() || self.g.stack.stack.len() > 250 || self.g.current_block_ref().instructions.len() / 2 > self.instr_limit {
+            if self.instr_interpreted_count >= self.interpretation_hard_limit() ||
+               self.g.stack.stack.len() > 250 ||
+               (baseline_instr_count + self.g.current_block_ref().instructions.len()) / 2 > self.instr_limit
+            {
                 if self.conf.should_log(2) {
                     println!("end interpret_block: Interpretation hard limit reached");
                 }
@@ -1333,6 +1374,44 @@ impl<'a, TP: TraceProvider> Precompiler<'a, TP> {
                     break;
                 }
             }
+
+            assert!(self.conf.yield_interval > 0);
+            if self.instr_interpreted_count - baseline_interpret_count >= self.conf.yield_interval as usize &&
+                self.pending_branches.len() > 0 &&
+                (self.is_good_yield_point() || (self.instr_interpreted_count - baseline_interpret_count).saturating_sub(512) / 2 > self.conf.yield_interval as usize)
+            {
+                // yield to 1. avoid getting stuck in long branchless blocks
+                //          2. get opportunities for merges
+                if self.conf.should_log(7) {
+                    println!("  Yielding at IP={} after {} instructions to let other branches execute", self.position, self.instr_interpreted_count - baseline_interpret_count);
+                }
+
+                let stack_snapshot = self.g.stack.save();
+                let new_block = self.g.new_block(self.position, false, vec![]);
+                let target_block_id = new_block.id;
+
+                let branch_id = self.g.push_instr(OptOp::Jump(Condition::True, target_block_id), &stack_snapshot.stack, false, None, None).1.map(|i| i.id);
+                if let Some(branch_id) = branch_id {
+                    self.pending_branches.push_back(PendingBranchInfo {
+                        target: self.position,
+                        reversed_direction: self.reversed_direction,
+                        assumes: vec![vec![Condition::True]],
+                        b: vec![PrecompileStepResultBranch {
+                            target: self.position,
+                            condition: Condition::True,
+                            stack: (0, vec![]),
+                            call_ret: None,
+                            additional_instr: vec![],
+                        }],
+                        from: vec![branch_id],
+                        to_bb: target_block_id,
+                        stack_snapshot: vec![stack_snapshot],
+                    });
+                }
+
+                break
+            }
+
             self.instr_interpreted_count += 1;
 
             if self.conf.should_log(20) {
@@ -1361,6 +1440,7 @@ impl<'a, TP: TraceProvider> Precompiler<'a, TP> {
             self.visited_ips.entry(self.position).or_default().visits += 1;
             let mut result = self.step();
 
+            self.g.current_block_mut().ksplang_instr_count += 1;
 
             if let PrecompileStepResult::NevimJakChteloByToKonstantu(ref needed) = result {
                 if let Some(branches) = self.resolve_constants(needed) {
@@ -1370,7 +1450,6 @@ impl<'a, TP: TraceProvider> Precompiler<'a, TP> {
                 }
             }
 
-            self.g.current_block_mut().ksplang_instr_count += 1;
 
             match result {
                 PrecompileStepResult::Continue => {}
@@ -1418,12 +1497,7 @@ impl<'a, TP: TraceProvider> Precompiler<'a, TP> {
                         stack_snapshot.stack.truncate(stack_snapshot.stack.len() - branch.stack.0 as usize);
                         stack_snapshot.stack.extend(&branch.stack.1);
 
-                        let existing_idx = self.pending_branches.iter().position(|pb|
-                            pb.target == branch.target &&
-                            pb.reversed_direction == self.reversed_direction &&
-                            pb.stack_snapshot[0].depth == stack_snapshot.depth &&
-                            pb.stack_snapshot[0].stack.len() == stack_snapshot.stack.len()
-                        );
+                        let existing_idx = self.find_mergeable_pending_branch_at(branch.target, stack_snapshot.depth, stack_snapshot.stack.len());
 
                         let target_block_id = if let Some(idx) = existing_idx {
                             BlockId(self.pending_branches[idx].to_bb.0)
@@ -1495,9 +1569,6 @@ impl<'a, TP: TraceProvider> Precompiler<'a, TP> {
 
             self.position = self.next_position();
         }
-        if self.conf.allow_pruning {
-            self.g.clean_poped_values();
-        }
         if self.conf.should_log(3) {
             println!("Finalizing block. Stack: {}", self.g.fmt_stack());
         }
@@ -1506,7 +1577,10 @@ impl<'a, TP: TraceProvider> Precompiler<'a, TP> {
             self.g.stack.clear();
         } else {
             self.g.push_instr_may_deopt(OptOp::deopt_always(), &[]);
-            self.g.current_block_mut().is_finalized = true;
+        }
+        self.g.current_block_mut().is_finalized = true;
+        if self.conf.allow_pruning {
+            self.g.clean_poped_values();
         }
     }
 
@@ -1545,6 +1619,40 @@ impl<'a, TP: TraceProvider> Precompiler<'a, TP> {
                 }
                 break pb;
             };
+
+            // continue previous block if no branching is actually needed
+            if pb.from.len() == 1 {
+                let jump_instr_id = pb.from[0];
+                let pred_block_id = jump_instr_id.0;
+
+                let pred_block = self.g.block_(pred_block_id);
+                let target_block = self.g.block_(pb.to_bb);
+                assert!(pred_block.is_reachable);
+                let all_stack_values_valid = pb.stack_snapshot[0].stack.iter().all(|v| !v.is_computed() || self.g.values.contains_key(v));
+                
+                if pred_block.outgoing_jumps.len() == 1 &&
+                    target_block.incoming_jumps.is_empty() &&
+                    all_stack_values_valid
+                {
+                    if self.conf.should_log(3) {
+                        println!("  Continue previously yielded block: pred={pred_block_id} jump_instr={jump_instr_id}");
+                    }
+                    assert_eq!(jump_instr_id.1, *pred_block.instructions.keys().last().unwrap());
+                    self.g.remove_instruction(jump_instr_id, false);
+                    self.g.block_mut(pb.to_bb).unwrap().is_reachable = false;
+
+                    { // hope this doesn't break something
+                        let pred_block = self.g.block_mut(pred_block_id).unwrap();
+                        pred_block.is_finalized = false;
+                        pred_block.is_terminated = false;
+                    }
+                    self.position = pb.target;
+                    self.g.assumed_program_position = Some(pb.target);
+                    self.g.switch_to_block(pred_block_id, pb.stack_snapshot[0].depth, pb.stack_snapshot[0].stack.clone());
+                    continue;
+                }
+            }
+
             let bid = pb.to_bb;
             assert_eq!(self.g.block_(bid).parameters, []);
             assert!(!pb.stack_snapshot.is_empty());

@@ -256,7 +256,7 @@ fn check_prior_effect(block: &BasicBlock, instr_idx: u32) -> (bool, bool) {
 fn can_hoist_from_block(
     g: &GraphBuilder,
     block: &BasicBlock,
-    instr_idx: u32,
+    _instr_idx: u32,
     instr: &OptInstr,
     prior_effect: bool,
     prior_checkpoint: bool,
