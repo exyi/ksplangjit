@@ -843,3 +843,9 @@ fn fuzz_hoisting_stale_used_at_references() {
     let ops = vec![ DigitSum, DigitSum, DigitSum, Praise, LenSum, Increment, Bitshift, LSwap, Increment, DigitSum, LSwap, Swap, BranchIfZero, Increment, LenSum, Max, LenSum, LSwap, Increment, DigitSum, LSwap, Swap, Increment, Increment, Increment, Bitshift, LSwap, Increment, DigitSum, Swap, Increment, Increment, DigitSum, Call ];
     verify_repro_const(ops, vec![0], vec![-22951322395474513]);
 }
+
+#[test]
+fn fuzz_hoisting_missing_used_at_update() {
+    let ops = vec![ DigitSum, DigitSum, Praise, LenSum, Remainder, Funkcia, LSwap, LenSum, DigitSum, LSwap, Qeq, Pop, DigitSum, GcdN, Swap ];
+    verify_repro_const(ops, vec![3387041171301535023, 0], vec![-5764607527110201553]);
+}

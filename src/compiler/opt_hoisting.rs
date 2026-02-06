@@ -142,6 +142,10 @@ pub fn hoist_up(g: &mut GraphBuilder, predecessor: BlockId) -> bool {
             g.block_mut_(predecessor).instructions
                 .insert(new_iid.instr_ix(), hoisted_instr.clone());
 
+            for inp in hoisted_instr.iter_inputs() {
+                g.mark_used_at(inp, new_iid);
+            }
+
             for &iid in instr_ids.iter() {
                 // g.remove_instruction(iid, false);
                 let block = g.block_mut_(iid.block_id());

@@ -647,12 +647,8 @@ impl GraphBuilder {
         None
     }
 
-    fn mark_used_at(&mut self, val: ValueId, instr: InstrId) {
-        if val.is_constant() || val.is_null() {
-            return;
-        }
-
-        if let Some(info) = self.values.get_mut(&val) {
+    pub fn mark_used_at(&mut self, val: ValueId, instr: InstrId) {
+        if val.is_computed() && let Some(info) = self.values.get_mut(&val) {
             info.used_at.insert(instr);
         }
     }
