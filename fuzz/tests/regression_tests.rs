@@ -849,3 +849,9 @@ fn fuzz_hoisting_missing_used_at_update() {
     let ops = vec![ DigitSum, DigitSum, Praise, LenSum, Remainder, Funkcia, LSwap, LenSum, DigitSum, LSwap, Qeq, Pop, DigitSum, GcdN, Swap ];
     verify_repro_const(ops, vec![3387041171301535023, 0], vec![-5764607527110201553]);
 }
+
+#[test]
+fn fuzz_simpl_sub_stupid_overflow() {
+    let ops = vec![ DigitSum, DigitSum, LenSum, Median, Remainder, DigitSum, Max, DigitSum, DigitSum, Funkcia, Universal, DigitSum ];
+    verify_repro_const(ops, vec![0], vec![-7668198601541026032, -9223372036854775808]);
+}

@@ -1914,7 +1914,7 @@ pub fn simplify_instr(cfg: &mut GraphBuilder, mut i: OptInstr) -> (OptInstr, Opt
                     // a - (a - b) -> b
                     return result_val!(y_def.inputs[1]);
                 }
-                if y_def.op == OptOp::Sub && y_def.inputs[0].is_constant() {
+                if y_def.op == OptOp::Sub && y_def.inputs[0].is_constant() && y_def.inputs[0] != ValueId::C_IMIN {
                     // a - (C - x) -> a + x + (-C)
                     let cc = cfg.get_constant_(y_def.inputs[0]);
                     let other_y = y_def.inputs[1];
