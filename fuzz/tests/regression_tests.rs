@@ -855,3 +855,9 @@ fn fuzz_simpl_sub_stupid_overflow() {
     let ops = vec![ DigitSum, DigitSum, LenSum, Median, Remainder, DigitSum, Max, DigitSum, DigitSum, Funkcia, Universal, DigitSum ];
     verify_repro_const(ops, vec![0], vec![-7668198601541026032, -9223372036854775808]);
 }
+
+#[test]
+fn fuzz_obc_lower_push_drain_conflicting_with_deopt_loadconst() {
+    let ops = vec![ DigitSum, LSwap, Modulo, DigitSum, LSwap, DigitSum, Increment, DigitSum, LSwap, Median ];
+    verify_repro_const(ops, vec![0], vec![3]);
+}

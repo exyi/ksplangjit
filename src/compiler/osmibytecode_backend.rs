@@ -633,7 +633,8 @@ impl<'a> Compiler<'a> {
 
             if let Some(deopt) = &mut self.current_deopt {
                 if deopt.stack_reconstruction.starts_with(&regs) &&
-                    !deopt.opcodes.iter().any(|i| i.modifies_stack())
+                    !deopt.opcodes.iter().any(|i| i.modifies_stack()) &&
+                    !deopt.opcodes.iter().flat_map(|i| i.write_regs()).any(|r| deopt.stack_reconstruction[0..regs.len()].contains(&r))
                 {
                     deopt.stack_reconstruction.drain(0..regs.len());
                 } else {
