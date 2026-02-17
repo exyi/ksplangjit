@@ -4,7 +4,7 @@ use rustc_hash::{FxHashMap as HashMap};
 use num_integer::Integer;
 use smallvec::{SmallVec, smallvec};
 
-use crate::{compiler::{cfg::{GraphBuilder, StackState}, config::{JitConfig, get_config}, ops::{BlockId, InstrId, OpEffect, OptInstr, OptOp, ValueId}, opt_hoisting::hoist_up, osmibytecode::Condition, range_ops::{IRange, eval_combi, range_div, range_num_digits}, simplifier::{self, simplify_cond}, utils::{FULL_RANGE, abs_range, add_range, eval_combi_u64, intersect_range, range_2_i64, sort_tuple, sub_range}}, digit_sum::digit_sum, funkcia::funkcia, ops::Op, vm::{self, OperationError, QuadraticEquationResult, solve_quadratic_equation}};
+use crate::{compiler::{cfg::{GraphBuilder, StackState}, config::{JitConfig, get_config}, ops::{BlockId, InstrId, OpEffect, OptInstr, OptOp, ValueId}, opt_hoisting::{hoist_up, hoist_down}, osmibytecode::Condition, range_ops::{IRange, eval_combi, range_div, range_num_digits}, simplifier::{self, simplify_cond}, utils::{FULL_RANGE, abs_range, add_range, eval_combi_u64, intersect_range, range_2_i64, sort_tuple, sub_range}}, digit_sum::digit_sum, funkcia::funkcia, ops::Op, vm::{self, OperationError, QuadraticEquationResult, solve_quadratic_equation}};
 
 pub trait TraceProvider {
     // type TracePointer
@@ -1685,6 +1685,14 @@ impl<'a, TP: TraceProvider> Precompiler<'a, TP> {
             assert_eq!(self.g.stack.stack, []);
             assert_eq!(pb.assumes.len(), pb.stack_snapshot.len());
             self.g.seal_block(bid);
+
+            if self.conf.allow_downhoisting && self.g.block_(bid).incoming_jumps.len() > 1 {
+                if hoist_down(&mut self.g, bid) {
+                    if self.conf.should_log(2) {
+                        println!("  Down-hoisted code into block {}", self.g.block_(bid));
+                    }
+                }
+            }
 
             let common_assumes: BTreeSet<_> =
                  pb.assumes.iter().enumerate()

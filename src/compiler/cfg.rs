@@ -1214,7 +1214,7 @@ impl GraphBuilder {
         }
         for &val in &after {
             if before.binary_search(&val).is_err() {
-                let vi = self.values.get_mut(&val).unwrap();
+                let Some(vi) = self.values.get_mut(&val) else { unreachable!("update_instr_inputs({id}): value {val} is not defined\n    {}", self.get_instruction_(id)) };
                 vi.used_at.insert(id);
             }
         }
@@ -1408,7 +1408,7 @@ impl GraphBuilder {
         format!("{} [{}]", self.stack.stack.len(), parts.join(", "))
     }
 
-    fn remove_used_at(&mut self, val: ValueId, instr: InstrId) {
+    pub fn remove_used_at(&mut self, val: ValueId, instr: InstrId) {
         if !val.is_computed() {
             return;
         }
@@ -1425,6 +1425,9 @@ impl GraphBuilder {
         let Some(instr) = self.blocks[block_id.0 as usize].instructions.remove(&instr_ix) else {
             return;
         };
+        if self.conf.should_log(30) {
+            println!("Removing {instr}");
+        }
         if let Some(out_val) = self.values.get(&instr.out) {
             assert!(instr.out.is_computed());
 

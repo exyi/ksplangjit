@@ -17,6 +17,7 @@ pub struct JitConfig {
 
     pub allow_pruning: bool,
     pub allow_uphoisting: bool,
+    pub allow_downhoisting: bool,
     pub verify: u8, // 0 = off, 1 = first run, 2 = full
     pub error_as_deopt: bool,
     pub allow_osmibyte_backend: bool,
@@ -96,6 +97,7 @@ fn create_config() -> JitConfig {
 
         allow_pruning: parse_env("KSPLANGJIT_PRUNING", true),
         allow_uphoisting: parse_env("KSPLANGJIT_ALLOW_UPHOISTING", true),
+        allow_downhoisting: parse_env("KSPLANGJIT_ALLOW_DOWNHOISTING", true),
         error_as_deopt: parse_env("KSPLANGJIT_ERROR_AS_DEOPT", true),
         allow_osmibyte_backend: parse_env("KSPLANGJIT_ALLOW_OSMIBYTE_BACKEND", true),
         verify: parse_env("KSPLANGJIT_VERIFY", 1),

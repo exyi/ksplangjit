@@ -2,6 +2,7 @@ use std::{any::{Any, TypeId}, borrow::Borrow, cmp, collections::HashSet, fmt::De
 
 use num_traits::{Bounded, CheckedMul, One, SaturatingAdd, SaturatingMul, SaturatingSub, Zero};
 use rustc_hash::FxHashMap;
+use smallvec::{Array, SmallVec};
 
 pub const EMPTY_RANGE: RangeInclusive<i64> = 1..=0;
 pub const FULL_RANGE: RangeInclusive<i64> = i64::MIN..=i64::MAX;
@@ -194,6 +195,40 @@ where U: TryFrom<T>,
     }
 }
 
+pub trait RemoveAll {
+    fn remove_all(&mut self, ixs: &[usize]);
+}
+
+macro_rules! impl_remove_all {
+    ($arr:expr, $ixs:expr) => {{
+        debug_assert!($ixs.is_sorted());
+        let mut ix = 0;
+        let mut iter = $ixs.iter().peekable();
+        $arr.retain(|_| {
+            if let Some(&&next) = iter.peek() && next <= ix {
+                debug_assert_eq!(next, ix);
+                iter.next();
+                ix += 1;
+                false
+            } else {
+                ix += 1;
+                true
+            }
+        });
+        debug_assert_eq!($arr.len(), ix - $ixs.len());
+    }}
+}
+impl<T> RemoveAll for Vec<T> {
+    fn remove_all(&mut self, ixs: &[usize]) {
+        impl_remove_all!(self, ixs)
+    }
+}
+impl<A: Array> RemoveAll for SmallVec<A> {
+    fn remove_all(&mut self, ixs: &[usize]) {
+        impl_remove_all!(self, ixs)
+    }
+}
+
 pub trait AnnotationObj: Any + Debug + RefUnwindSafe {
     fn type_name(&self) -> &str { std::any::type_name::<Self>() }
 }
@@ -226,6 +261,16 @@ impl Annotations {
             false
         }
     }
+}
+
+pub fn all_equal<T: PartialEq>(mut it: impl Iterator<Item = T>) -> bool {
+    let Some(first) = it.next() else { return true };
+    for x in it {
+        if first != x {
+            return false
+        }
+    }
+    return true
 }
 
 impl PartialEq for Annotations {

@@ -861,3 +861,45 @@ fn fuzz_obc_lower_push_drain_conflicting_with_deopt_loadconst() {
     let ops = vec![ DigitSum, LSwap, Modulo, DigitSum, LSwap, DigitSum, Increment, DigitSum, LSwap, Median ];
     verify_repro_const(ops, vec![0], vec![3]);
 }
+
+#[test]
+fn fuzz_downhoisting_bug1() {
+    let ops = vec![ Max, Increment, Increment, DigitSum, DigitSum, DigitSum, DigitSum, DigitSum, Median, LSwap, Increment, Increment, DigitSum, DigitSum, Increment, DigitSum, DigitSum, LenSum, Median, DigitSum, LSwap, Remainder, BranchIfZero, Pop, Call ];
+    verify_repro_const(ops, vec![0], vec![-36346010435344602, -392368914689]);
+}
+
+#[test]
+fn fuzz_downhoisting_only_hoist_if_value_is_not_used_elsewhere() {
+    let ops = vec![ DigitSum, DigitSum, Call, DigitSum, Call, Call, Call, Call, Call, DigitSum, LSwap, Remainder, BranchIfZero, BranchIfZero, DigitSum, DigitSum, Remainder, Universal, DigitSum, DigitSum, LenSum, Universal, DigitSum, DigitSum, DigitSum, LenSum, Universal, DigitSum ];
+    verify_repro_const(ops, vec![0], vec![3240293197518270441]);
+}
+
+#[test]
+fn fuzz_downhoisting_candidates_are_block_params() {
+    let ops = vec![ DigitSum, Gcd2, DigitSum, LSwap, BranchIfZero, LSwap, Swap, DigitSum, DigitSum, DigitSum, Swap, DigitSum, DigitSum, DigitSum, Increment, Bitshift, DigitSum ];
+    verify_repro_const(ops, vec![0], vec![54649067190550320]);
+}
+
+#[test]
+fn fuzz_downhoisting_not_sure_if_this_actually_crashed_or_what() {
+    let ops = vec![ DigitSum, DigitSum, Call, Call, Call, TetrationNumIters, Call, DigitSum, LSwap, Modulo, BranchIfZero, BranchIfZero, Increment, Increment, Increment, Increment, Increment, Increment, Increment, Increment, DigitSum, Bitshift, DigitSum ];
+    verify_repro_const(ops, vec![0], vec![3242323644006104782]);
+}
+
+#[test]
+fn fuzz_downhoisting_duplicate_jump_input() {
+    let ops = vec![ DigitSum, DigitSum, Call, DigitSum, Praise, Call, Call, TetrationNumIters, Call, DigitSum, LSwap, Modulo, BranchIfZero, BranchIfZero, Increment, Increment, DigitSum, Increment, Increment, Increment, Increment, Increment, Increment, DigitSum, Increment, Increment, DigitSum, Increment, DigitSum, DigitSum, Bitshift, DigitSum ];
+    verify_repro_const(ops, vec![0], vec![3240293197518270441]);
+}
+
+#[test]
+fn fuzz_downhoisting_shared_transitive_source() {
+    let ops = vec![ DigitSum, DigitSum, Call, DigitSum, Call, Call, Call, Call, Call, DigitSum, LSwap, Remainder, BranchIfZero, BranchIfZero, DigitSum, Increment, Increment, Increment, Median, Increment, DigitSum, DigitSum, DigitSum, Remainder, Universal, DigitSum, DigitSum, LenSum, Universal, DigitSum, DigitSum, DigitSum, LenSum, Universal, DigitSum ];
+    verify_repro_const(ops, vec![137], vec![3240293197518270441]);
+}
+
+#[test]
+fn fuzz_downhoisting_mixed_hoisted_args() {
+    let ops = vec![ DigitSum, DigitSum, Call, DigitSum, Jump, Call, Call, Call, Call, DigitSum, LSwap, Modulo, BranchIfZero, BranchIfZero, DigitSum, Increment, Increment, Increment, DigitSum, DigitSum, Remainder, Universal, Increment, Modulo, Increment, Increment, Increment, DigitSum, Increment, Increment, DigitSum, DigitSum, Modulo, Universal, DigitSum, DigitSum, DigitSum, LenSum, Universal, DigitSum, DigitSum, LenSum, Increment, DigitSum, DigitSum, LenSum, Universal, DigitSum ];
+    verify_repro_const(ops, vec![251], vec![3240293197518270441]);
+}

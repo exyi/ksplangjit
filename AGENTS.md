@@ -58,7 +58,9 @@ Key env variables:
 
 - Simpler is better
 - IRange/URange (type aliases for `RangeInclusive<i64/u64>`)
-- Do not handle unnecessary edge cases. If unsure if it can happen, add assert! / .unwrap / unreachable!. Fuzzer will either give us test case or prove it can't happen.
+- 100% Critical: Do not handle unnecessary edge cases. If unsure if it can happen, add assert! / .unwrap / unreachable!. Fuzzer will either give us test case or prove it can't happen.
+  - Failed asserts are pleasure to debug compared to miscompilations.
+- Do not bother with assert/panic error messages, we'll add it when we see it fail.
 - Use debug_assert for more expensive expressions or in super hot code (i.e., osmibytecode vm)
 - Never run autoformatter
 - Import `FxHashMap` as `HashMap`. Use BTreeMap if performance isn't critical or set is unlikely to be big
