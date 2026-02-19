@@ -2037,7 +2037,7 @@ fn analyze_value_lifetimes(g: &GraphBuilder, error_will_deopt: bool) -> LiveRang
             let var_ranges: &mut HashMap<BlockId, (InstrId, InstrId)> = ranges.entry(*var).or_default();
             // assert!(!var_ranges.contains_key(&block.id), "{result:?} has duplicated value {var}");
             // var_ranges.insert(block.id, (from.clone(), to.clone()));
-            var_ranges.entry(block.id).or_insert((from.clone(), to.clone()));
+            var_ranges.entry(block.id).or_insert((*from, *to));
         }
 
         live_vars.insert(block.id, result);

@@ -45,3 +45,9 @@ harness = false
 [[bench]]
 name = "program_bench"
 harness = false
+
+[lints.clippy]
+reversed_empty_ranges = "allow"
+len_zero = "allow" # !is_empty() is not more readable
+collapsible_if = "allow"
+manual_range_contains = "allow"

@@ -252,9 +252,6 @@ pub fn hoist_down(g: &mut GraphBuilder, target: BlockId) -> bool {
             println!("    arg_values={:?}", cand.arg_values);
         }
         let new_inputs: SmallVec<[ValueId; 4]> = cand.arg_values.iter().enumerate().map(|(i, arg_vals)| {
-            let resolved: SmallVec<[ValueId; 4]> = arg_vals.iter().map(|&v| {
-                resolve_map.get(&v).copied().unwrap_or(v)
-            }).collect();
             if let Some(resolved) = arg_vals.iter().filter_map(|v| resolve_map.get(v)).next() {
                 if g.conf.should_log(10) {
                     println!("    arg_vals[{i}]={arg_vals:?} -> {resolved} (another hoisted operation)");

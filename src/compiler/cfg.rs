@@ -1345,7 +1345,7 @@ impl GraphBuilder {
                 return (c, range)
             }
             // println!("DBG val_range_at({v}, {at}) assumptions: {:?}", info.iter_assumptions(at, &self.block_(at.block_id()).predecessors).collect::<Vec<_>>());
-            for (condition, range_from, range_to, _from) in info.iter_assumptions(at, &self.block_(at.block_id()).predecessors) {
+            if let Some((condition, range_from, range_to, _from)) = info.iter_assumptions(at, &self.block_(at.block_id()).predecessors).next() {
                 let range = intersect_range(*range_from..=*range_to, &range);
                 if let &Condition::Eq(eq_a, eq_b) = condition && depth < Self::MAX_ANALYZE_DEPTH.saturating_add(10) {
                     assert!(eq_a == v || eq_b == v);

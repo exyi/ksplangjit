@@ -146,13 +146,13 @@ impl<'a> OptOptPattern<'a> {
     pub fn boxed(self) -> Box<Self> { Box::new(self) }
 
     pub fn try_match(&'_ self, cfg: &GraphBuilder, val: &[ValueId]) -> Result<MatchInfo<'_>, ()> {
-        let mut info = MatchInfo::new();
+        let mut info = MatchInfo::default();
         self.match_internal(cfg, val, &mut info)?;
         Ok(info)
     }
 
     pub fn try_match_instr(&'_ self, cfg: &GraphBuilder, instr: &OptInstr) -> Result<MatchInfo<'_>, ()> {
-        let mut info = MatchInfo::new();
+        let mut info = MatchInfo::default();
         if self.match_instr_core(cfg, instr, &mut info) {
             info.values.push(instr.out);
             Ok(info)
@@ -514,7 +514,7 @@ impl fmt::Debug for OptOptPattern<'_> {
 }
 
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct MatchInfo<'a> {
     pub constants: SmallVec<[i64; 3]>,
     pub values: SmallVec<[ValueId; 6]>,
@@ -522,10 +522,6 @@ pub struct MatchInfo<'a> {
 }
 
 impl<'a> MatchInfo<'a> {
-    pub fn new() -> Self {
-        Self { constants: SmallVec::new(), values: SmallVec::new(), named: Vec::new(), }
-    }
-
     fn save_point(&self) -> MatchInfoSavePoint {
         MatchInfoSavePoint {
             constants_len: self.constants.len(),

@@ -1379,7 +1379,7 @@ impl Tracer for ActualTracer {
 
     fn instruction(&mut self, ip: usize, op: Op, result: &Result<Effect, OperationError>) -> Result<(), RunError> {
         // println!("ActualTracer: {ip} {op} {result:?} {} {}", self.total_pops, self.total_pushes);
-        if self.total_pops == u32::MAX || self.total_pops == u32::MAX {
+        if self.total_pops == u32::MAX || self.total_pushes == u32::MAX {
             return Err(RunError::TracerInterrupt(0, format!("trace size overflow")))
         }
 
@@ -1777,7 +1777,7 @@ impl OptimizingVM {
     }
 
     fn save_block(&self, s: &mut State<'_, Optimizer>, start_ip: usize, reversed: bool, cfg: GraphBuilder, gain_from: usize, tracer: Option<ActualTracer>) {
-        let cfg_instr_count = cfg.reachable_blocks().map(|b| b.instructions.len()).count();
+        let cfg_instr_count = cfg.reachable_blocks().map(|b| b.instructions.len()).sum::<usize>();
         if self.conf.min_gain_mul as usize * cfg_instr_count + (self.conf.min_gain_const as usize) > gain_from {
             if self.conf.should_log(2) {
                 println!("Not optimized enough at {start_ip} {reversed}: From {gain_from} ksplang to {cfg_instr_count} min gain = {} + {}x", self.conf.min_gain_const, self.conf.min_gain_mul);

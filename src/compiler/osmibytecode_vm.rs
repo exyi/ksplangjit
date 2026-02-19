@@ -1,4 +1,4 @@
-use std::{cmp, fmt, hint::select_unpredictable, ops::{Index, IndexMut}, u32};
+use std::{cmp, fmt, hint::select_unpredictable, ops::{Index, IndexMut}};
 
 use num_integer::Integer;
 

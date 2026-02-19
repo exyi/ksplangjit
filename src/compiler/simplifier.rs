@@ -1939,7 +1939,7 @@ pub fn simplify_instr(cfg: &mut GraphBuilder, mut i: OptInstr) -> (OptInstr, Opt
         // OR a + ((a / 2) * -2 - 2)
         // which is equivalent to (a % 2) - 2
         if OptOp::Add == i.op && !i.inputs[0].is_constant() && i.inputs.len() == 2 && i.inputs[0] != i.inputs[1] {
-            const MUL_PATTERN: LazyLock<OptOptPattern> = LazyLock::new(||
+            static MUL_PATTERN: LazyLock<OptOptPattern> = LazyLock::new(||
                 P::op2(OptOp::Mul,
                     -2,
                     P::op2(OptOp::Add,
