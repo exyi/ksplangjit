@@ -184,5 +184,5 @@ fn verify_repro_core(r: ReproData) -> (GraphBuilder, OsmibytecodeBlock) {
         (Err(e), _, Ok(_)) => panic!("Osmibyte Err: {:?}, VM OK", e),
     }
 
-    return (g, obc_block)
+    (g, obc_block)
 }

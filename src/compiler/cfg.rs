@@ -1,6 +1,6 @@
 use core::{fmt};
 use std::{
-    borrow::Cow, cmp, collections::{BTreeMap, BTreeSet, hash_map::Entry}, i32, ops::{Range, RangeInclusive}, u32
+    borrow::Cow, cmp, collections::{BTreeMap, BTreeSet, hash_map::Entry}, ops::{Range, RangeInclusive}
 };
 use rustc_hash::{FxHashMap as HashMap};
 
@@ -400,7 +400,7 @@ impl GraphBuilder {
                     resolved[i] = Some(*vals.iter().next().unwrap());
                 } else {
                     let range = vals.iter().map(|v| self.val_range_at(*v, InstrId(id, 1)))
-                        .reduce(|a, b| union_range(a, b))
+                        .reduce(union_range)
                         .unwrap();
                     tighten_ranges.insert(i, range);
 
@@ -465,8 +465,8 @@ impl GraphBuilder {
         // tighten ranges of remaining params
         for (ix, p) in params.iter().enumerate() {
             if let Some(new_range) = tighten_ranges.get(&ix) {
-                if let Some(info) = self.values.get_mut(&p) {
-                    let new_range = intersect_range(&info.range.clone(), new_range);
+                if let Some(info) = self.values.get_mut(p) {
+                    let new_range = intersect_range(info.range.clone(), new_range);
                     assert!(!new_range.is_empty(), "Empty range for parameter {} of block {} after tightening ({:?}, {:?})", p, block_id, info.range, new_range);
                     info.range = new_range;
                 }
@@ -606,7 +606,7 @@ impl GraphBuilder {
 
     fn value_numbering_store(&mut self, op: OptOp<ValueId>, args: &[ValueId], val: ValueId, defined_at: InstrId) {
         let instr = (op, args.to_smallvec());
-        let v = self.value_index.entry(instr).or_insert_with(Vec::new);
+        let v = self.value_index.entry(instr).or_default();
         if v.last() != Some(&(val, defined_at)) {
             v.push((val, defined_at));
         }
@@ -897,7 +897,7 @@ impl GraphBuilder {
             println!("Actually pushing {instr}")
         }
 
-        assert!(self.current_block_ref().is_finalized == false, "Cannot add instruction to finalized block: {:?}", self.current_block_ref());
+        assert!(!self.current_block_ref().is_finalized, "Cannot add instruction to finalized block: {:?}", self.current_block_ref());
         if instr.op.is_terminal() {
             self.current_block_mut().is_terminated = true;
         } else if instr.effect != OpEffect::None {
@@ -1017,27 +1017,24 @@ impl GraphBuilder {
                 }
             }
         }
-        match instr.op {
-            OptOp::Jump(_, target) => {
-                let j = &mut self.block_mut_(target).incoming_jumps;
-                for jump in j.iter_mut() {
-                    if *jump == id {
-                        *jump = new_id;
+        if let OptOp::Jump(_, target) = instr.op {
+            let j = &mut self.block_mut_(target).incoming_jumps;
+            for jump in j.iter_mut() {
+                if *jump == id {
+                    *jump = new_id;
+                }
+            }
+            if id.0 != new_id.0 {
+                todo!("oh shit, this might need updating predecessors and ehhh")
+            } else {
+                let b = self.block_mut(id.0).unwrap();
+                for jump in &mut b.outgoing_jumps {
+                    if jump.0 == id {
+                        assert_eq!(jump.1, target);
+                        *jump = (new_id, target)
                     }
                 }
-                if id.0 != new_id.0 {
-                    todo!("oh shit, this might need updating predecessors and ehhh")
-                } else {
-                    let b = self.block_mut(id.0).unwrap();
-                    for jump in &mut b.outgoing_jumps {
-                        if jump.0 == id {
-                            assert_eq!(jump.1, target);
-                            *jump = (new_id, target)
-                        }
-                    }
-                }
-            },
-            _ => {}
+            }
         }
 
         let b = self.block_mut_(new_id.0);
@@ -1196,7 +1193,7 @@ impl GraphBuilder {
         instr
     }
 
-    pub fn update_instr_inuts(&mut self, id: InstrId, f: impl FnOnce(&mut OptInstr) -> ()) {
+    pub fn update_instr_inuts(&mut self, id: InstrId, f: impl FnOnce(&mut OptInstr)) {
         let instr = self.instr_mut(id).unwrap();
         let mut before: SmallVec<[ValueId; 12]> = instr.iter_inputs().filter(|v| v.is_computed()).collect();
         before.sort();
@@ -1259,7 +1256,7 @@ impl GraphBuilder {
         used.into_iter().collect()
     }
 
-    pub fn get_defined_at<'a>(&'a self, v: ValueId) -> Option<&'a OptInstr> {
+    pub fn get_defined_at(&self, v: ValueId) -> Option<&OptInstr> {
         if v.is_constant() { return None }
         self.val_info(v).and_then(|info| info.assigned_at)
                         .and_then(|at| self.get_instruction(at))
@@ -1272,7 +1269,7 @@ impl GraphBuilder {
             x.range = c..=c;
             Some(Cow::Owned(x))
         } else {
-            self.values.get(&v).map(|v| Cow::Borrowed(v))
+            self.values.get(&v).map(Cow::Borrowed)
         }
     }
 
@@ -1361,12 +1358,12 @@ impl GraphBuilder {
             }
             return (v, range)
         }
-        return (v, info.range.clone())
+        (v, info.range.clone())
     }
 
     pub fn iter_val_assumptions(&self, v: ValueId, at: InstrId) -> impl Iterator<Item = (Condition<ValueId>, i64, i64, InstrId)> + '_ {
         const EMPTY_VAL_INFO: ValueInfo = ValueInfo::new(ValueId::NEW_PLACEHOLDER);
-        const EMPTY_VAL_INFO_REF: &'static ValueInfo = &EMPTY_VAL_INFO;
+        const EMPTY_VAL_INFO_REF: &ValueInfo = &EMPTY_VAL_INFO;
         let info = self.values.get(&v).unwrap_or(EMPTY_VAL_INFO_REF);
         info.iter_assumptions(at, &self.block_(at.0).predecessors).cloned()
             .chain([()].into_iter().flat_map(move |_| {

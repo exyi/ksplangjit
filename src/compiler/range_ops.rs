@@ -23,7 +23,7 @@ pub fn from_rangebounds(r: impl RangeBounds<i64>) -> RangeInclusive<i64> {
         std::ops::Bound::Included(&x) => x,
         std::ops::Bound::Unbounded => i64::MAX,
     };
-    return start..=end;
+    start..=end
 }
 
 #[inline]
@@ -53,7 +53,7 @@ pub fn range_mod(a_range: RangeInclusive<i64>, b_range: RangeInclusive<i64>) -> 
     let negative = negative.map(range_2_i64_neg);
     let min = *negative.as_ref().or(positive.as_ref()).unwrap().start();
     let max = *positive.or(negative).unwrap().end();
-    return min..=max;
+    min..=max
 }
 
 /// Returns input-range -> output-range pairs, inside the range the mod is a fixed offset
@@ -186,7 +186,7 @@ fn range_mod_u(a_range: RangeInclusive<u64>, b_range: RangeInclusive<u64>) -> Ra
         return a_lo..=a_hi;
     }
 
-    return 0..=cmp::min(b_hi - 1, a_hi);
+    0..=cmp::min(b_hi - 1, a_hi)
 }
 
 
@@ -263,7 +263,7 @@ pub fn get_bitsets(a: &RangeInclusive<u64>) -> (u64, u64) {
     // let variable_bits = (b ^ a).next_power_of_two() - 1;
     assert_eq!(a & !variable_bits, b & !variable_bits, "range={a}..={b}: variable_bits={variable_bits}");
     let const_bits = a & !variable_bits;
-    return (const_bits, const_bits | variable_bits);
+    (const_bits, const_bits | variable_bits)
 }
 
 fn split_range_unsigned_bitwise(a: impl Borrow<IRange>) -> ArrayVec<URange, 2> {

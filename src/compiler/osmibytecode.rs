@@ -277,7 +277,7 @@ impl<TReg: Debug + Clone> OsmibyteOp<TReg> {
             if !write {
                 out.push(r.clone());
             }
-            ()
+
         });
         out
     }
@@ -288,7 +288,7 @@ impl<TReg: Debug + Clone> OsmibyteOp<TReg> {
             if write {
                 out.push(r.clone());
             }
-            ()
+
         });
         out
     }
@@ -423,10 +423,10 @@ impl<TReg> Condition<TReg> {
             Condition::GtConst(_, c) => args[0] > *c as i64,
             Condition::Geq(_, _) => args[0] >= args[1],
             Condition::GeqConst(_, c) => args[0] >= *c as i64,
-            Condition::Divides(_, _) => args[1] != 0 && args[0].unsigned_abs() % args[1].unsigned_abs() == 0,
-            Condition::DividesConst(_, c) => *c != 0 && args[0].unsigned_abs() % (*c as u64) == 0,
-            Condition::NotDivides(_, _) => args[1] == 0 || args[0].unsigned_abs() % args[1].unsigned_abs() != 0,
-            Condition::NotDividesConst(_, c) => *c == 0 || args[0].unsigned_abs() % (*c as u64) != 0,
+            Condition::Divides(_, _) => args[1] != 0 && args[0].unsigned_abs().is_multiple_of(args[1].unsigned_abs()),
+            Condition::DividesConst(_, c) => *c != 0 && args[0].unsigned_abs().is_multiple_of(*c as u64),
+            Condition::NotDivides(_, _) => args[1] == 0 || !args[0].unsigned_abs().is_multiple_of(args[1].unsigned_abs()),
+            Condition::NotDividesConst(_, c) => *c == 0 || !args[0].unsigned_abs().is_multiple_of(*c as u64),
             Condition::True => true,
             Condition::False => false,
         }

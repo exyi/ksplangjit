@@ -108,7 +108,7 @@ fn create_range_constraint_condition(cfg: &mut GraphBuilder, v: ValueId, range0:
         let start = cfg.store_constant(*range.start());
         res.push(Condition::Leq(start, v));
     }
-    return res;
+    res
 }
 
 fn simplify_cond_core(cfg: &mut GraphBuilder, condition: &Condition<ValueId>, at: InstrId) -> Condition<ValueId> {
@@ -650,7 +650,7 @@ const SOME_PRIMES: [u8; 54] = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 4
 fn try_get_lowest_divisor(a: u64) -> Option<u64> {
     if a == 1 { return None }
     for p in SOME_PRIMES {
-        if a % (p as u64) == 0 {
+        if a.is_multiple_of(p as u64) {
             return Some(p as u64);
         }
     }
@@ -678,7 +678,7 @@ pub fn extract_effect(g: &mut GraphBuilder, current_effect: OpEffect, op: &OptOp
             }) else {
                 return (current_effect, vec![])
             };
-            let Some(val) = values.get(0).copied() else {
+            let Some(val) = values.first().copied() else {
                 return (OpEffect::None, vec![]) // all constants
             };
             let vr = g.val_range(val);
@@ -927,7 +927,7 @@ fn merge_constants(cfg: &mut GraphBuilder, i: &mut OptInstr, merge: impl FnMut(i
         i.inputs.insert(0, cfg.store_constant(c));
         return true;
     }
-    return false;
+    false
 }
 
 /// Returns (changed, new instruction)
@@ -1034,7 +1034,7 @@ pub fn simplify_instr(cfg: &mut GraphBuilder, mut i: OptInstr) -> (OptInstr, Opt
             if let Some(variable) = i.inputs.iter().find(|v| !v.is_constant()) &&
                 i.op.condition().is_none() &&
                 i.inputs.iter().filter(|v| !v.is_constant()).count() == 1 &&
-                let Some(var_info) = cfg.values.get(&variable) &&
+                let Some(var_info) = cfg.values.get(variable) &&
                 let Some(select) = var_info.assigned_at.and_then(|iid| cfg.get_instruction(iid)) &&
                 let OptOp::Select(select_condition) = &select.op &&
                 select.inputs.iter().all(|v| v.is_constant())
@@ -1494,7 +1494,7 @@ pub fn simplify_instr(cfg: &mut GraphBuilder, mut i: OptInstr) -> (OptInstr, Opt
                     continue;
                 }
             }
-            OptOp::KsplangOpsIncrement(_) if i.inputs.len() == 0 || &ranges == &[0..=0] =>
+            OptOp::KsplangOpsIncrement(_) if i.inputs.len() == 0 || ranges == [0..=0] =>
                 return (i.clone().with_op(OptOp::Nop, &[], OpEffect::None), None),
             OptOp::KsplangOpsIncrement(_) if i.inputs.len() > 1 && i.inputs[1].is_constant() => {
                 if merge_constants(cfg, &mut i, |a, b| a.checked_add(b)) {

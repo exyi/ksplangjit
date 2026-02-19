@@ -68,7 +68,7 @@ pub fn parse_word(word: &str) -> Result<Op, ParserError> {
         _ => return Err(ParserError::UnknownOperation(word.to_string())),
     };
 
-    return Ok(op);
+    Ok(op)
 }
 
 /// Parses a ksplang program into instructions ([`Vec<Op>`]).

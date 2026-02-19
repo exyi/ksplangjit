@@ -192,7 +192,7 @@ impl<'a> OptOptPattern<'a> {
             info.named.push((name.clone(), v))
         }
         // println!("match_internal({val:?}, {self}) -> Ok({v})");
-        return Ok(v)
+        Ok(v)
     }
     fn match_core(&self, cfg: &GraphBuilder, val: &[ValueId], info: &mut MatchInfo<'a>) -> Result<ValueId, ()> {
         for vv in &self.options_values {
@@ -355,7 +355,7 @@ impl<'a> OptOptPattern<'a> {
                         continue;
                     }
 
-                    if let Ok(matched) = p.match_internal(&cfg, &[*v], info) {
+                    if let Ok(matched) = p.match_internal(cfg, &[*v], info) {
                         info.revert_to(&save1);
                         matches.entry(matched).or_default().push(i as u32);
                     }

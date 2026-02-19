@@ -447,7 +447,7 @@ impl<'vm, 'prog, 'opts> ShrinkingContext<'vm, 'prog, 'opts> {
             .then(|| OsmibytecodeBlock::from_cfg(&pre.g));
         OptimizedBlock {
             cfg: Some(Box::new(pre.g)),
-            osmibytecode: osmibytecode,
+            osmibytecode,
             original_tracer: None,
             reversed: self.start_state.reversed,
             start_ip: self.start_state.ip,

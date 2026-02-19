@@ -261,7 +261,7 @@ pub fn hoist_down(g: &mut GraphBuilder, target: BlockId) -> bool {
                         "oh shit, this a known bug, please disable down-hoisting with KSPLANGJIT_ALLOW_DOWNHOISTING=0\n\n{cand:?}"); // TODO: 
                 *resolved
             } else {
-                let new_param = find_or_create_param(g, target, &incoming, &arg_vals);
+                let new_param = find_or_create_param(g, target, &incoming, arg_vals);
                 if g.conf.should_log(10) {
                     println!("    arg_vals[{i}]={arg_vals:?} -> {new_param} (new parameter)");
                 }

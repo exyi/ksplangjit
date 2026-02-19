@@ -66,7 +66,7 @@ pub fn postorder(g: &GraphBuilder) -> Vec<BlockId> {
 
     core(g, BlockId(0), &mut visited, &mut result);
 
-    return result;
+    result
 }
 
 pub fn reverse_postorder(g: &GraphBuilder) -> Vec<BlockId> {
@@ -104,7 +104,7 @@ pub fn dataflow<T: PartialEq>(
         }).collect();
 
         if next_state == state {
-            return order.into_iter().zip(next_state.into_iter()).collect();
+            return order.into_iter().zip(next_state).collect();
         }
 
         state = next_state;

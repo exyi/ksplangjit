@@ -111,7 +111,7 @@ impl<'a> Compiler<'a> {
                     return false
                 }
             }
-            return false
+            false
         }
 
 
@@ -119,17 +119,17 @@ impl<'a> Compiler<'a> {
             Const(_) => panic!("Special op, should not be in CfG"),
             Add => {
                 let aop = Some(if instr.effect == OpEffect::None { OsmibyteArrayOp::AddWrapping } else { OsmibyteArrayOp::Add });
-                self.lower_variadic(instr, aop, |out, a, b| OsmibyteOp::Add(out, a, b), |out, a, c| Some(OsmibyteOp::AddConst(out, a, c.try_into().ok()?)))
+                self.lower_variadic(instr, aop, OsmibyteOp::Add, |out, a, c| Some(OsmibyteOp::AddConst(out, a, c.try_into().ok()?)))
             }
             Mul => self.lower_mul(instr),
-            Sub => self.lower_binary(instr, |out, a, b| OsmibyteOp::Sub(out, a, b), |_, _, _| None, |out, c, b| Some(OsmibyteOp::SubConst(out, c.try_into().ok()?, b))),
-            AbsSub => self.lower_variadic(instr, None, |out, a, b| OsmibyteOp::AbsSub(out, a, b), |out, a, c| Some(OsmibyteOp::AbsSubConst(out, a, c.try_into().ok()?))),
+            Sub => self.lower_binary(instr, OsmibyteOp::Sub, |_, _, _| None, |out, c, b| Some(OsmibyteOp::SubConst(out, c.try_into().ok()?, b))),
+            AbsSub => self.lower_variadic(instr, None, OsmibyteOp::AbsSub, |out, a, c| Some(OsmibyteOp::AbsSubConst(out, a, c.try_into().ok()?))),
             Div => return self.lower_div(instrs),
-            CursedDiv => self.lower_binary(instr, |out, a, b| OsmibyteOp::CursedDiv(out, a, b), |_, _, _| None, |_, _, _| None),
+            CursedDiv => self.lower_binary(instr, OsmibyteOp::CursedDiv, |_, _, _| None, |_, _, _| None),
             Mod => {
                 let lhs_range = self.g.val_range_at(instr.inputs[0], instr.id);
                 let lhs_non_negative = *lhs_range.start() >= 0;
-                self.lower_binary(instr, |out, a, b| OsmibyteOp::Mod(out, a, b), {
+                self.lower_binary(instr, OsmibyteOp::Mod, {
                     move |out, a, c| {
                         let c: i32 = c.try_into().ok()?;
                         if c > 0 && (c as u64).is_power_of_two() && lhs_non_negative {
@@ -141,7 +141,7 @@ impl<'a> Compiler<'a> {
                 }, |_, _, _| None);
             }
             ModEuclid => {
-                self.lower_binary(instr, |out, a, b| OsmibyteOp::ModEuclid(out, a, b), move |out, a, c| {
+                self.lower_binary(instr, OsmibyteOp::ModEuclid, move |out, a, c| {
                     let c: i32 = c.try_into().ok()?;
                     if c > 0 && (c as u64).is_power_of_two() {
                         Some(OsmibyteOp::AndConst(out, a, c.wrapping_sub(1)))
@@ -150,36 +150,36 @@ impl<'a> Compiler<'a> {
                     }
                 }, |_, _, _| None);
             }
-            Tetration => self.lower_binary(instr, |out, a, b| OsmibyteOp::Tetration(out, a, b), |_, _, _| None, |_, _, _| None),
-            Funkcia => self.lower_binary(instr, |out, a, b| OsmibyteOp::Funkcia(out, a, b), |_, _, _| None, |_, _, _| None),
+            Tetration => self.lower_binary(instr, OsmibyteOp::Tetration, |_, _, _| None, |_, _, _| None),
+            Funkcia => self.lower_binary(instr, OsmibyteOp::Funkcia, |_, _, _| None, |_, _, _| None),
             Max => consumed = self.lower_max(instrs),
             Min => self.lower_min(instr),
-            Sgn => self.lower_unary(instr, |out, a| OsmibyteOp::Sgn(out, a)),
-            AbsFactorial => self.lower_unary(instr, |out, a| OsmibyteOp::AbsFactorial(out, a)),
-            LenSum => self.lower_binary(instr, |out, a, b| OsmibyteOp::Lensum(out, a, b), |_, _, _| None, |_, _, _| None),
+            Sgn => self.lower_unary(instr, OsmibyteOp::Sgn),
+            AbsFactorial => self.lower_unary(instr, OsmibyteOp::AbsFactorial),
+            LenSum => self.lower_binary(instr, OsmibyteOp::Lensum, |_, _, _| None, |_, _, _| None),
             And => self.lower_variadic(instr, Some(OsmibyteArrayOp::And),
-                                              |out, a, b| OsmibyteOp::And(out, a, b),
+                                              OsmibyteOp::And,
                                               |out, a, c| c.try_into().ok().map(|mask| OsmibyteOp::AndConst(out, a, mask))),
             Or => self.lower_variadic(instr, Some(OsmibyteArrayOp::Or),
-                                             |out, a, b| OsmibyteOp::Or(out, a, b),
+                                             OsmibyteOp::Or,
                                              |out, a, c| c.try_into().ok().map(|mask| OsmibyteOp::OrConst(out, a, mask))),
             Xor => self.lower_variadic(instr, Some(OsmibyteArrayOp::Xor),
-                                              |out, a, b| OsmibyteOp::Xor(out, a, b),
+                                              OsmibyteOp::Xor,
                                               |out, a, c| c.try_into().ok().map(|mask| OsmibyteOp::XorConst(out, a, mask))),
             ShiftL => self.lower_binary(instr,
-                |out, a, b| OsmibyteOp::ShiftL(out, a, b),
+                OsmibyteOp::ShiftL,
                 |out, a, c| { assert!(c > 0); Some(OsmibyteOp::ShiftConst(out, a, c.try_into().ok()?)) },
                 |_, _, _| None),
             ShiftR => self.lower_binary(instr,
-                |out, a, b| OsmibyteOp::ShiftR(out, a, b),
+                OsmibyteOp::ShiftR,
                 |out, a, c: i64| { assert!(c > 0); Some(OsmibyteOp::ShiftConst(out, a, c.checked_neg()?.try_into().ok()?)) },
                 |_, _, _| None),
-            BinNot => self.lower_unary(instr, |out, a| OsmibyteOp::BinNot(out, a)),
-            BoolNot => self.lower_unary(instr, |out, a| OsmibyteOp::BoolNot(out, a)),
+            BinNot => self.lower_unary(instr, OsmibyteOp::BinNot),
+            BoolNot => self.lower_unary(instr, OsmibyteOp::BoolNot),
             Select(condition) => self.lower_select(instr, condition.clone()),
             DigitSum => consumed = self.lower_digit_sum(instrs),
             Gcd if instr.inputs.len() == 1 => unreachable!(),
-            Gcd if instr.inputs.len() == 2 => self.lower_binary(instr, |out, a, b| OsmibyteOp::Gcd(out, a, b), |_, _, _| None, |_, _, _| None),
+            Gcd if instr.inputs.len() == 2 => self.lower_binary(instr, OsmibyteOp::Gcd, |_, _, _| None, |_, _, _| None),
             Gcd => {
                 let mut inputs = instr.inputs.clone();
                 // smaller values first, it will make gcd faster
@@ -334,14 +334,14 @@ impl<'a> Compiler<'a> {
         }
 
         self.lower_variadic(max, Some(OsmibyteArrayOp::Max),
-                                 |out, a, b| OsmibyteOp::Max(out, a, b),
+                                 OsmibyteOp::Max,
                                  |out, a, c| Some(OsmibyteOp::MaxConst(out, a, c.try_into().ok()?)));
         1
     }
 
     fn lower_min(&mut self, instr: &OptInstr) {
         self.lower_variadic(instr, Some(OsmibyteArrayOp::Min),
-                                   |out, a, b| OsmibyteOp::Min(out, a, b),
+                                   OsmibyteOp::Min,
                                    |out, a, c| Some(OsmibyteOp::MinConst(out, a, c.try_into().ok()?)));
     }
 
@@ -353,7 +353,7 @@ impl<'a> Compiler<'a> {
             if let Some(&next) = instrs.get(1) {
                 // (a / 2) + 1 -> median a 2
                 if divisor == 2 &&
-                    next.op == OptOp::Add && &next.inputs[..] == &[ValueId::C_ONE, div.out] &&
+                    next.op == OptOp::Add && next.inputs[..] == [ValueId::C_ONE, div.out] &&
                     self.used_exactly_at(div.out, &[next.id])
                 {
                     let spec = self.prepare_output(next.out);
@@ -368,7 +368,7 @@ impl<'a> Compiler<'a> {
         // negative numbers get rounded down with bitshift
         let can_use_shift = *self.g.val_range(div.inputs[0]).start() >= 0;
 
-        self.lower_binary(div, |out, a, b| OsmibyteOp::Div(out, a, b), |out, a, c| {
+        self.lower_binary(div, OsmibyteOp::Div, |out, a, c| {
             if can_use_shift && c > 0 && (c as u64).is_power_of_two() {
                 let shift_amount = -(c.trailing_zeros() as i32) as i8;
                 return Some(OsmibyteOp::ShiftConst(out, a, shift_amount));
@@ -380,7 +380,7 @@ impl<'a> Compiler<'a> {
 
     fn lower_mul(&mut self, instr: &OptInstr) {
         let aop = Some(OsmibyteArrayOp::Mul);
-        self.lower_variadic(instr, aop, |out, a, b| OsmibyteOp::Mul(out, a, b), |out, a, c| {
+        self.lower_variadic(instr, aop, OsmibyteOp::Mul, |out, a, c| {
             if c > 0 && (c as u64).is_power_of_two() && instr.effect == OpEffect::None {
                 let shift_amount = c.trailing_zeros() as i8;
                 return Some(OsmibyteOp::ShiftConst(out, a, shift_amount));
@@ -397,11 +397,11 @@ impl<'a> Compiler<'a> {
 
         if let Some(&ds2) = instrs.get(1) {
             // digit_sum(digit_sum(x))
-            if ds2.op == OptOp::DigitSum && &ds2.inputs[..] == &[ds1.out] {
+            if ds2.op == OptOp::DigitSum && ds2.inputs[..] == [ds1.out] {
                 if let Some(&lensum) = instrs.get(2) {
                     // lensum(digit_sum(digit_sum(x)), digit_sum(x))
                     if lensum.op == OptOp::LenSum
-                        && (&lensum.inputs[..] == &[ds2.out, ds1.out] || &lensum.inputs[..] == &[ds1.out, ds2.out])
+                        && (lensum.inputs[..] == [ds2.out, ds1.out] || lensum.inputs[..] == [ds1.out, ds2.out])
                         && self.used_exactly_at(ds2.out, &[lensum.id])
                         && self.used_exactly_at(ds1.out, &[lensum.id, ds2.id])
                     {
@@ -581,10 +581,10 @@ impl<'a> Compiler<'a> {
             if may_deopt {
                 _ = self.save_deopt();
             }
-            self.program.push(match ins.as_slice() {
-                &[a, b, c] => OsmibyteOp::ArrayOp3(out.target_reg(), op, a, b, c),
-                &[a, b, c, d] => OsmibyteOp::ArrayOp4(out.target_reg(), op, a, b, c, d),
-                &[a, b, c, d, e] => OsmibyteOp::ArrayOp5(out.target_reg(), op, a, b, c, d, e),
+            self.program.push(match *ins.as_slice() {
+                [a, b, c] => OsmibyteOp::ArrayOp3(out.target_reg(), op, a, b, c),
+                [a, b, c, d] => OsmibyteOp::ArrayOp4(out.target_reg(), op, a, b, c, d),
+                [a, b, c, d, e] => OsmibyteOp::ArrayOp5(out.target_reg(), op, a, b, c, d, e),
                 _ => unreachable!()
             });
             self.finalize_output(out);
@@ -637,14 +637,12 @@ impl<'a> Compiler<'a> {
                     !deopt.opcodes.iter().flat_map(|i| i.write_regs()).any(|r| deopt.stack_reconstruction[0..regs.len()].contains(&r))
                 {
                     deopt.stack_reconstruction.drain(0..regs.len());
+                } else if let Some(OsmibyteOp::ArrayOp(_, OsmibyteArrayOp::Nothing, count, true)) = deopt.opcodes.get_mut(0) {
+                    *count += regs.len() as u16;
                 } else {
-                    if let Some(OsmibyteOp::ArrayOp(_, OsmibyteArrayOp::Nothing, count, true)) = deopt.opcodes.get_mut(0) {
-                        *count += regs.len() as u16;
-                    } else {
-                        deopt.opcodes =
-                            [OsmibyteOp::ArrayOp(RegId(255), OsmibyteArrayOp::Nothing, regs.len() as u16, true)]
-                            .into_iter().chain(deopt.opcodes.clone()).collect();
-                    }
+                    deopt.opcodes =
+                        [OsmibyteOp::ArrayOp(RegId(255), OsmibyteArrayOp::Nothing, regs.len() as u16, true)]
+                        .into_iter().chain(deopt.opcodes.clone()).collect();
                 }
             }
         }
@@ -655,7 +653,7 @@ impl<'a> Compiler<'a> {
     }
 
     fn lower_pop(&mut self, instrs: &[&OptInstr]) -> usize {
-        self.save_deopt_maybe(&instrs[0]);
+        self.save_deopt_maybe(instrs[0]);
         let mut pops = vec![];
         let mut out_specs = vec![];
         let mut out_regs = vec![];
@@ -670,11 +668,11 @@ impl<'a> Compiler<'a> {
                 break;
             }
         }
-        self.program.push(match &out_regs[..] {
-            &[a] => OsmibyteOp::Pop(a),
-            &[a, b] => OsmibyteOp::Pop2(a, b),
-            &[a, b, c] => OsmibyteOp::Pop3(a, b, c),
-            &[a, b, c, d] => OsmibyteOp::Pop4(a, b, c, d),
+        self.program.push(match out_regs[..] {
+            [a] => OsmibyteOp::Pop(a),
+            [a, b] => OsmibyteOp::Pop2(a, b),
+            [a, b, c] => OsmibyteOp::Pop3(a, b, c),
+            [a, b, c, d] => OsmibyteOp::Pop4(a, b, c, d),
             _ => unreachable!()
         });
         for &spec in &out_specs {
@@ -961,11 +959,11 @@ impl<'a> Compiler<'a> {
     fn lower_condition_with_mapping(
         &mut self,
         condition: Condition<ValueId>,
-        mut mapping: impl FnMut(&mut Self, ValueId, RegId) -> ()
+        mut mapping: impl FnMut(&mut Self, ValueId, RegId)
     ) -> Condition<RegId> {
         use Condition::*;
         fn i16conv(x: i64) -> Option<i16> {
-            return x.try_into().ok()
+            x.try_into().ok()
         }
         let mut materialize = |this: &mut Self, val| {
             let reg = this.materialize_value_(val);
@@ -1126,7 +1124,7 @@ impl<'a> Compiler<'a> {
         let Some(used_at) = self.get_usages(value) else {
             return false;
         };
-        return used_at.len() == at.len() && at.iter().all(|i| used_at.contains(i));
+        used_at.len() == at.len() && at.iter().all(|i| used_at.contains(i))
     }
 
     fn materialize_value_(&mut self, value: ValueId) -> RegId {
@@ -1364,7 +1362,7 @@ impl<'a> Compiler<'a> {
                 deopt.ksplang_ops_increment -= incoming_ctr_inc;
                 Some(deopt)
             } else {
-                return None;
+                None
             }
         }
     }
@@ -2002,7 +2000,7 @@ fn analyze_value_lifetimes(g: &GraphBuilder, error_will_deopt: bool) -> LiveRang
                     }
                 }
             }
-            return required
+            required
         });
 
     let mut ranges = HashMap::default();
@@ -2013,7 +2011,7 @@ fn analyze_value_lifetimes(g: &GraphBuilder, error_will_deopt: bool) -> LiveRang
         let mut result = vec![];
 
         for (_, jump_to) in &block.outgoing_jumps {
-            for &next_requires in perblock_req.get(&jump_to).iter().flat_map(|x| *x) {
+            for &next_requires in perblock_req.get(jump_to).iter().flat_map(|x| *x) {
                 let &from = defined_at.get(&next_requires).unwrap_or(&0);
                 result.push((InstrId(block.id, from), InstrId(block.id, u32::MAX), next_requires));
                 // last_use.remove(&next_requires);

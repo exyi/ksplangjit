@@ -91,7 +91,7 @@ pub fn digit_sum_range(r: RangeInclusive<i64>) -> RangeInclusive<i64> {
 
     assert!(olo <= hi && olo >= lo && ohi >= lo && ohi <= hi, "out of range input: {}..={}, olo={}, ohi={}", lo, hi, olo, ohi);
 
-    return cmp::min(digit_sum_u64(olo), digit_sum_u64(lo))..=cmp::max(digit_sum_u64(ohi), digit_sum_u64(hi));
+    cmp::min(digit_sum_u64(olo), digit_sum_u64(lo))..=cmp::max(digit_sum_u64(ohi), digit_sum_u64(hi))
 }
 
 pub fn digit_sum_reference(num: i64) -> i64 {

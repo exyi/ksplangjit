@@ -9,10 +9,10 @@ use crate::{compiler::{cfg::{GraphBuilder, StackState}, config::{JitConfig, get_
 pub trait TraceProvider {
     // type TracePointer
     fn get_results<'a>(&'a mut self, ip: usize) -> impl Iterator<Item = (u32, SmallVec<[i64; 2]>)> + 'a;
-    fn get_observed_stack_values<'a>(&'a mut self, ip: usize, depths: &[usize]) -> Vec<Vec<i64>>;
+    fn get_observed_stack_values(&mut self, ip: usize, depths: &[usize]) -> Vec<Vec<i64>>;
     fn is_lazy(&self) -> bool;
 
-    fn get_branch_targets<'a>(&'a mut self, ip: usize) -> impl Iterator<Item = usize>;
+    fn get_branch_targets(&mut self, ip: usize) -> impl Iterator<Item = usize>;
     // fn get_push_pop_count(&mut self, ip: usize) -> impl Iterator<Item = (u32, u32)>;
 }
 
@@ -21,12 +21,12 @@ impl TraceProvider for NoTrace {
     fn get_results<'a>(&'a mut self, _ip: usize) -> impl Iterator<Item = (u32, SmallVec<[i64; 2]>)> + 'a {
         std::iter::empty()
     }
-    fn get_observed_stack_values<'a>(&'a mut self, _ip: usize, _depths: &[usize]) -> Vec<Vec<i64>> {
+    fn get_observed_stack_values(&mut self, _ip: usize, _depths: &[usize]) -> Vec<Vec<i64>> {
         vec![]
     }
     fn is_lazy(&self) -> bool { false }
 
-    fn get_branch_targets<'a>(&'a mut self, _ip: usize) -> impl Iterator<Item = usize> {
+    fn get_branch_targets(&mut self, _ip: usize) -> impl Iterator<Item = usize> {
         std::iter::empty()
     }
 }
@@ -137,7 +137,7 @@ impl<'a, TP: TraceProvider> Precompiler<'a, TP> {
         if condition == Condition::False {
             return PrecompileStepResult::Continue;
         }
-    
+
         if let Some(target_const) = self.g.get_constant(target) {
             let target_ip: Option<usize> = if is_relative {
                 target_const.try_into().ok()
@@ -512,7 +512,7 @@ impl<'a, TP: TraceProvider> Precompiler<'a, TP> {
 
     pub fn step(&mut self) -> PrecompileStepResult {
         use PrecompileStepResult::*;
-        let op = self.ops[self.position as usize];
+        let op = self.ops[self.position];
 
         match op {
             crate::ops::Op::Nop => Continue,
@@ -624,7 +624,7 @@ impl<'a, TP: TraceProvider> Precompiler<'a, TP> {
                     return Continue
                 }
 
-                return NevimJak // TODO:
+                NevimJak // TODO:
             }
             crate::ops::Op::FF => NevimJak,
             crate::ops::Op::KPi => NevimJak,
@@ -1055,7 +1055,7 @@ impl<'a, TP: TraceProvider> Precompiler<'a, TP> {
                         // let's make a branch for this, since it can be legitimately useful in some cases (for duplication 😭)
 
                         let are_states_distinguishable =
-                            self.g.stack.peek().is_some_and(|v| intersect_range(&self.g.val_range(v), &negated_range).is_empty());
+                            self.g.stack.peek().is_some_and(|v| intersect_range(self.g.val_range(v), &negated_range).is_empty());
 
                         let at = self.g.next_instr_id();
                         let divisibility = simplifier::simplify_cond(&mut self.g, Condition::Divides(c, b), at);
@@ -1100,11 +1100,11 @@ impl<'a, TP: TraceProvider> Precompiler<'a, TP> {
                     let div = self.g.value_numbering(OptOp::Div, &[dividend, divisor], if !alt_branch.is_empty() { None } else if elide_neg { Some(negated_range.clone()) } else { Some(div_range.clone()) }, Some(OpEffect::None)); // all failures must be handled specially here
 
                     let result = if !elide_neg {
-                        let neg = self.g.value_numbering(OptOp::Sub, &[ValueId::C_ZERO, div],
+
+                        self.g.value_numbering(OptOp::Sub, &[ValueId::C_ZERO, div],
                             alt_branch.is_empty().then_some(negated_range),
                             Some(if can_overflow { OpEffect::MayFail } else { OpEffect::None })
-                        );
-                        neg
+                        )
                     } else {
                         div
                     };
@@ -1217,15 +1217,15 @@ impl<'a, TP: TraceProvider> Precompiler<'a, TP> {
             },
             crate::ops::Op::BranchIfZero => {
                 let (val, target) = self.g.peek_stack_2();
-                return self.branching(target, false, false, Condition::Eq(ValueId::C_ZERO, val));
+                self.branching(target, false, false, Condition::Eq(ValueId::C_ZERO, val))
             }
             crate::ops::Op::Call => {
                 let t = self.g.peek_stack();
-                return self.branching(t, false, true, Condition::True);
+                self.branching(t, false, true, Condition::True)
             }
             crate::ops::Op::Goto => {
                 let t = self.g.peek_stack();
-                return self.branching(t, false, false, Condition::True);
+                self.branching(t, false, false, Condition::True)
             }
             crate::ops::Op::Jump => {
                 let t = self.g.peek_stack();
@@ -1259,7 +1259,7 @@ impl<'a, TP: TraceProvider> Precompiler<'a, TP> {
                     }
                 }
 
-                return self.branching(t, true, false, Condition::True);
+                self.branching(t, true, false, Condition::True)
             }
             // BS instrukce
             crate::ops::Op::Rev | crate::ops::Op::Sleep | crate::ops::Op::Deez | crate::ops::Op::Sum => NevimJak,
@@ -1307,7 +1307,7 @@ impl<'a, TP: TraceProvider> Precompiler<'a, TP> {
             matches!(op, Op::DigitSum)
     }
 
-    fn interpret_block(&mut self) -> () {
+    fn interpret_block(&mut self) {
         let baseline_instr_count: usize = self.g.reachable_blocks().filter(|b| b.id != self.g.current_block).map(|b| b.instructions.len()).sum();
         let baseline_step_count = self.step_count;
 
@@ -1467,7 +1467,7 @@ impl<'a, TP: TraceProvider> Precompiler<'a, TP> {
                     let b = &branches[0];
                     assert_eq!(b.condition, Condition::True);
                     if b.additional_instr.len() > 0 { todo!("{:?}", b) }
-                    self.g.pop_stack_n(b.stack.0 as usize);
+                    self.g.pop_stack_n(b.stack.0);
                     for v in &b.stack.1 { self.g.stack.push(*v); }
                     self.position = b.target;
                     continue;
@@ -1494,7 +1494,7 @@ impl<'a, TP: TraceProvider> Precompiler<'a, TP> {
                         *self.visited_ips.entry(branch.target).or_default().branches.entry(self.position).or_default() += 1;
 
                         let mut stack_snapshot = self.g.stack.save();
-                        stack_snapshot.stack.truncate(stack_snapshot.stack.len() - branch.stack.0 as usize);
+                        stack_snapshot.stack.truncate(stack_snapshot.stack.len() - branch.stack.0);
                         stack_snapshot.stack.extend(&branch.stack.1);
 
                         let existing_idx = self.find_mergeable_pending_branch_at(branch.target, stack_snapshot.depth, stack_snapshot.stack.len());
@@ -1585,7 +1585,7 @@ impl<'a, TP: TraceProvider> Precompiler<'a, TP> {
     }
 
 
-    pub fn interpret(&mut self) -> () {
+    pub fn interpret(&mut self) {
         self.g.set_program_position(Some(self.position));
 
         'main: loop {
@@ -1629,7 +1629,7 @@ impl<'a, TP: TraceProvider> Precompiler<'a, TP> {
                 let target_block = self.g.block_(pb.to_bb);
                 assert!(pred_block.is_reachable);
                 let all_stack_values_valid = pb.stack_snapshot[0].stack.iter().all(|v| !v.is_computed() || self.g.values.contains_key(v));
-                
+
                 if pred_block.outgoing_jumps.len() == 1 &&
                     target_block.incoming_jumps.is_empty() &&
                     all_stack_values_valid

@@ -159,12 +159,12 @@ where T: Clone + TryFrom<U> + Ord,
       U: TryFrom<T> + Bounded + Clone
 {
     fn saturating_into(self) -> U {
-        if let Some(min) = T::try_from(U::min_value()).ok() {
+        if let Ok(min) = T::try_from(U::min_value()) {
             if self < min {
                 return U::min_value();
             }
         }
-        if let Some(max) = T::try_from(U::max_value()).ok() {
+        if let Ok(max) = T::try_from(U::max_value()) {
             if self > max {
                 return U::max_value();
             }
@@ -270,7 +270,7 @@ pub fn all_equal<T: PartialEq>(mut it: impl Iterator<Item = T>) -> bool {
             return false
         }
     }
-    return true
+    true
 }
 
 impl PartialEq for Annotations {
@@ -284,7 +284,7 @@ impl Debug for Annotations {
         let Some(data) = &self.data else { return write!(f, "{{}}") };
 
         let mut map = f.debug_map();
-        for (_t, instance) in data.as_ref() {
+        for instance in data.as_ref().values() {
             map.entry(&instance.as_ref().type_name(), instance.as_ref());
         }
         map.finish()

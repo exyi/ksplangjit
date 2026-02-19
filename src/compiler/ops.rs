@@ -54,10 +54,10 @@ impl ValueId {
             return Some(id as i64 - 1025);
         }
         if id <= 2049 + 54 {
-            return Some((1 as i64) << (id - 2049 + 10));
+            return Some(1_i64 << (id - 2049 + 10));
         }
         if id <= 2049 + 54 + 54 {
-            return Some(((1 as i64) << (id - 2049 - 54 + 10)).wrapping_sub(1));
+            return Some((1_i64 << (id - 2049 - 54 + 10)).wrapping_sub(1));
         }
         None
     }
@@ -135,11 +135,11 @@ impl BlockId {
 impl From<u32> for BlockId {
     fn from(value: u32) -> Self { BlockId(value) }
 }
-impl Into<usize> for BlockId {
-    fn into(self) -> usize { self.0 as usize }
+impl From<BlockId> for usize {
+    fn from(val: BlockId) -> Self { val.0 as usize }
 }
-impl Into<u32> for BlockId {
-    fn into(self) -> u32 { self.0 }
+impl From<BlockId> for u32 {
+    fn from(val: BlockId) -> Self { val.0 }
 }
 impl fmt::Display for BlockId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -180,11 +180,11 @@ impl fmt::Debug for InstrId {
         fmt::Display::fmt(self, f)
     }
 }
-impl Into<(u32, u32)> for InstrId {
-    fn into(self) -> (u32, u32) { (self.0 .0, self.1) }
+impl From<InstrId> for (u32, u32) {
+    fn from(val: InstrId) -> Self { (val.0 .0, val.1) }
 }
-impl Into<u64> for InstrId {
-    fn into(self) -> u64 { ((self.0 .0 as u64) << 32) | (self.1 as u64) }
+impl From<InstrId> for u64 {
+    fn from(val: InstrId) -> Self { ((val.0 .0 as u64) << 32) | (val.1 as u64) }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -368,8 +368,8 @@ impl<TVal: Clone + PartialEq + Eq + Display + Debug> OptOp<TVal> {
             OptOp::StackRead => 39,
             OptOp::Const(_) => 32,
             OptOp::Checkpoint => 38,
-            OptOp::Jump(condition, block_id) => 33 << 48 | (condition.discriminant() as usize) << 32 | (block_id.0 as usize),
-            OptOp::Assert(condition, _) => 34 << 32 | (condition.discriminant() as usize) << 16,
+            OptOp::Jump(condition, block_id) => 33 << 48 | condition.discriminant() << 32 | (block_id.0 as usize),
+            OptOp::Assert(condition, _) => 34 << 32 | condition.discriminant() << 16,
             OptOp::DeoptAssert(condition) => 35 << 16 | condition.discriminant(),
             OptOp::Median => 36,
             OptOp::MedianCursed => 37,
@@ -424,13 +424,13 @@ impl<TVal: Clone + PartialEq + Eq + Display + Debug> OptOp<TVal> {
                         let b = inputs[1];
                         if b == 0 {
                             Err(Some(OperationError::DivisionByZero))
-                        } else if a.unsigned_abs() % b.unsigned_abs() == 0 {
+                        } else if a.unsigned_abs().is_multiple_of(b.unsigned_abs()) {
                             a.checked_div(b).ok_or(Some(OperationError::IntegerOverflow))
                         } else {
                             a.checked_rem(b).ok_or(Some(OperationError::IntegerOverflow))
                         }
                     }
-            OptOp::ModEuclid | OptOp::Mod if inputs[1] == 0 => return Err(Some(OperationError::DivisionByZero)),
+            OptOp::ModEuclid | OptOp::Mod if inputs[1] == 0 => Err(Some(OperationError::DivisionByZero)),
             OptOp::Mod => Ok(inputs[0].wrapping_rem(inputs[1])),
             OptOp::ModEuclid => Ok(inputs[0].wrapping_rem_euclid(inputs[1])),
             OptOp::Tetration => Ok(vm::tetration(inputs[0], inputs[1])?),
@@ -502,7 +502,7 @@ impl<TVal: Clone + PartialEq + Eq + Display + Debug> OptOp<TVal> {
             OptOp::Sub => Some(sub_range(&inputs[0], &inputs[1])),
             OptOp::AbsSub => {
                 let (a, b) = (&inputs[0], &inputs[1]);
-                Some(range_2_i64(intersect_range(&abs_range(sub_range(a, b)), &abs_range(sub_range(b, a)))))
+                Some(range_2_i64(intersect_range(abs_range(sub_range(a, b)), abs_range(sub_range(b, a)))))
             },
             OptOp::Div => Some(range_div(&inputs[0], &inputs[1])),
             OptOp::CursedDiv => Some(union_range(range_div(&inputs[0], &inputs[1]), range_mod(inputs[0].clone(), inputs[1].clone()))),
@@ -574,7 +574,7 @@ impl<TVal: Clone + PartialEq + Eq + Display + Debug> OptOp<TVal> {
 
                 let mut min_start = i64::MAX;
                 let mut max_start = i64::MIN;
-                for i in intersect_range(&inputs[0], &(1..=inputs.len() as i64)) {
+                for i in intersect_range(&inputs[0], 1..=inputs.len() as i64 ) {
                     let med_start = median(&mut starts[..i as usize]);
                     let med_end = median(&mut ends[..i as usize]);
                     min_start = cmp::min(min_start, med_start);

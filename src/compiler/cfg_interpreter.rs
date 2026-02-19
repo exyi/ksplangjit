@@ -226,7 +226,7 @@ pub fn interpret_cfg(
     }
 
     Ok(CfgInterpretStats {
-        executed_ksplang: executed_ksplang,
+        executed_ksplang,
         executed_cfg_ops,
         next_ip,
         deoptimized: deoptimized.is_some(),

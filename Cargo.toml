@@ -51,3 +51,4 @@ reversed_empty_ranges = "allow"
 len_zero = "allow" # !is_empty() is not more readable
 collapsible_if = "allow"
 manual_range_contains = "allow"
+partialeq_to_none = "allow" # less generic, more readable

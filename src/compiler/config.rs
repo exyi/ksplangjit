@@ -124,7 +124,7 @@ fn create_config() -> JitConfig {
     c
 }
 
-static CELL: LazyLock<JitConfig> = LazyLock::new(|| create_config());
+static CELL: LazyLock<JitConfig> = LazyLock::new(create_config);
 
 pub fn get_config() -> &'static JitConfig {
     &CELL

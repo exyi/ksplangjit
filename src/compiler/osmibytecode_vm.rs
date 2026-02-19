@@ -164,14 +164,14 @@ fn eval_cond(regs: &RegFile, cond: Condition<RegId>) -> bool {
         Condition::GeqConst(a, c) => regs[a] >= c as i64,
         Condition::Divides(a, b) => {
             let divisor = regs[b];
-            divisor != 0 && regs[a].unsigned_abs() % divisor.unsigned_abs() == 0
+            divisor != 0 && regs[a].unsigned_abs().is_multiple_of(divisor.unsigned_abs())
         }
-        Condition::DividesConst(a, divisor) => regs[a].unsigned_abs() % divisor as u64 == 0,
+        Condition::DividesConst(a, divisor) => regs[a].unsigned_abs().is_multiple_of(divisor as u64),
         Condition::NotDivides(a, b) => {
             let divisor = regs[b];
-            divisor == 0 || regs[a].unsigned_abs() % divisor.unsigned_abs() != 0
+            divisor == 0 || !regs[a].unsigned_abs().is_multiple_of(divisor.unsigned_abs())
         }
-        Condition::NotDividesConst(a, divisor) => regs[a].unsigned_abs() % divisor as u64 != 0
+        Condition::NotDividesConst(a, divisor) => !regs[a].unsigned_abs().is_multiple_of(divisor as u64)
     }
 }
 
@@ -450,7 +450,7 @@ pub fn interpret_block<const DEOPT_ON_ERROR: bool>(prog: &OsmibytecodeBlock, sta
                             Err(err) => deopt_or_error!(err),
                         },
                         5 => regs[out] = value.signum(),
-                        0 | 1 | 2 | 3 => {
+                        0..=3 => {
                             deopt_auto = true;
                             break;
                         }
@@ -484,10 +484,10 @@ pub fn interpret_block<const DEOPT_ON_ERROR: bool>(prog: &OsmibytecodeBlock, sta
                 OsmibyteOp::ShiftConst(out, a, shift) => { regs[out] = if *shift >= 0 { regs[a] << shift } else { regs[a] >> -shift } },
                 OsmibyteOp::BinNot(out, a) => regs[out] = !regs[a],
                 OsmibyteOp::BoolNot(out, a) => regs[out] = (regs[a] == 0) as i64,
-                OsmibyteOp::SelectConst(out, condition, c1, c2) => regs[out] = select_unpredictable(eval_cond(&regs, condition.clone()), *c1, *c2) as i64,
-                OsmibyteOp::SelectConst0(out, condition, c1) => regs[out] = select_unpredictable(eval_cond(&regs, condition.clone()), *c1, 0) as i64,
-                OsmibyteOp::SelectConstReg(out, condition, c, a) => regs[out] = if eval_cond(&regs, condition.clone()) { *c as i64 } else { regs[a] },
-                OsmibyteOp::Select(out, condition, a, b) => regs[out] = if eval_cond(&regs, condition.clone()) { regs[a] } else { regs[b] },
+                OsmibyteOp::SelectConst(out, condition, c1, c2) => regs[out] = select_unpredictable(eval_cond(regs, condition.clone()), *c1, *c2) as i64,
+                OsmibyteOp::SelectConst0(out, condition, c1) => regs[out] = select_unpredictable(eval_cond(regs, condition.clone()), *c1, 0) as i64,
+                OsmibyteOp::SelectConstReg(out, condition, c, a) => regs[out] = if eval_cond(regs, condition.clone()) { *c as i64 } else { regs[a] },
+                OsmibyteOp::Select(out, condition, a, b) => regs[out] = if eval_cond(regs, condition.clone()) { regs[a] } else { regs[b] },
                 OsmibyteOp::DigitSum(out, a) => regs[out] = digit_sum::digit_sum(regs[a]),
                 OsmibyteOp::DigitSumSmall(out, a) => {
                     let value = regs[a];
@@ -546,23 +546,23 @@ pub fn interpret_block<const DEOPT_ON_ERROR: bool>(prog: &OsmibytecodeBlock, sta
                 },
                 OsmibyteOp::LoadConst64(out, id) => { regs[out] = prog.large_constants[*id as usize] },
                 OsmibyteOp::Jump(condition, new_ip) => {
-                    if eval_cond(&regs, condition.clone()) {
+                    if eval_cond(regs, condition.clone()) {
                         ip = *new_ip as u32;
                         continue;
                     }
                 },
                 OsmibyteOp::Assert(condition, err, arg) => {
-                    if !eval_cond(&regs, condition.clone()) {
+                    if !eval_cond(regs, condition.clone()) {
                         deopt_or_error!(error_from_code(*err, regs[arg]))
                     }
                 },
                 OsmibyteOp::DebugAssert(condition) => {
-                    if !eval_cond(&regs, condition.clone()) {
+                    if !eval_cond(regs, condition.clone()) {
                         panic!("Debug assertion failed: {condition:?} at {ip}:\n\n{prog}");
                     }
                 },
                 OsmibyteOp::DeoptAssert(condition, di) => {
-                    if !eval_cond(&regs, condition.clone()) {
+                    if !eval_cond(regs, condition.clone()) {
                         maybe_cold();
                         deopt_info = Some(*di as u32);
                         break;
@@ -602,12 +602,12 @@ pub fn interpret_block<const DEOPT_ON_ERROR: bool>(prog: &OsmibytecodeBlock, sta
                 OsmibyteOp::KsplangOpsIncrement(x) => { ksplang_ops_done = ksplang_ops_done.wrapping_add_signed(*x as i64) },
                 OsmibyteOp::KsplangOpsIncrementVar(x, mult) => { ksplang_ops_done = ksplang_ops_done.wrapping_add_signed(regs[x] * *mult as i64); },
                 OsmibyteOp::KsplangOpsIncrementCond(condition, x) => {
-                    if eval_cond(&regs, condition.clone()) {
+                    if eval_cond(regs, condition.clone()) {
                         ksplang_ops_done = ksplang_ops_done.wrapping_add_signed(*x as i64)
                     }
                 },
                 OsmibyteOp::KsplangOpsIncrementCondVar(condition, reg, mult, offset) => {
-                    if eval_cond(&regs, condition.clone()) {
+                    if eval_cond(regs, condition.clone()) {
                         let val = regs[reg] * *mult as i64 + *offset as i64;
                         ksplang_ops_done = ksplang_ops_done.wrapping_add_signed(val);
                     }
@@ -691,7 +691,7 @@ pub fn interpret_block<const DEOPT_ON_ERROR: bool>(prog: &OsmibytecodeBlock, sta
             // println!("DEOPT at {ip}: {deopt_id} {:?}", deopt);
             exit_point.get_or_insert(ExitPointId::Deopt(deopt_id));
             performing_deopt = Some(deopt_id);
-            ksplang_ops_done = ksplang_ops_done.wrapping_add_signed(deopt.ksplang_ops_increment as i64);
+            ksplang_ops_done = ksplang_ops_done.wrapping_add_signed(deopt.ksplang_ops_increment);
             program = &deopt.opcodes;
             ip = 0;
         } else if let Some(deopt_id) = performing_deopt {

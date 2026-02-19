@@ -109,7 +109,7 @@ fn gcd_nodiv(mut a: u64, mut b: u64) -> u64 {
     }
 
     debug_assert_eq!(a, gcd(a_orig, b_orig), "a_orig = {a_orig}, b_orig = {b_orig}");
-    debug_assert!(a_orig % a ==  0);
+    debug_assert!(a_orig.is_multiple_of(a));
 
     a
 }
@@ -157,7 +157,7 @@ pub fn funkcia_reference(a: i64, b: i64) -> Result<i64, OperationError> {
                                 the_other_factors: &HashMap<i64, usize>|
         -> Result<(), OperationError> {
         for (factor, count) in factors {
-            if the_other_factors.contains_key(&factor) {
+            if the_other_factors.contains_key(factor) {
                 continue;
             }
             is_empty = false;

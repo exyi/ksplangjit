@@ -313,7 +313,7 @@ pub(crate) fn decimal_len(num: i64) -> i64 {
 pub(crate) fn median(values: &mut [i64]) -> i64 {
     assert_ne!(values.len(), 0);
     values.sort();
-    if values.len() % 2 == 0 {
+    if values.len().is_multiple_of(2) {
         ((values[values.len() / 2 - 1] as i128 + (values[values.len() / 2] as i128))
             / 2)
         .try_into()
@@ -565,7 +565,7 @@ impl<'a, TTracer: Tracer> State<'a, TTracer> {
                     3 => {
                         let a = self.pop()?;
                         let b = self.pop()?;
-                        let rem = a.checked_rem(b).ok_or_else(|| {
+                        let rem = a.checked_rem(b).ok_or({
                             if b == 0 {
                                 OperationError::DivisionByZero
                             } else {
@@ -573,7 +573,7 @@ impl<'a, TTracer: Tracer> State<'a, TTracer> {
                             }
                         })?;
                         if rem == 0 {
-                            self.push(a.checked_div(b).ok_or_else(|| {
+                            self.push(a.checked_div(b).ok_or({
                                 if b == 0 {
                                     OperationError::DivisionByZero
                                 } else {
@@ -1380,7 +1380,7 @@ impl Tracer for ActualTracer {
     fn instruction(&mut self, ip: usize, op: Op, result: &Result<Effect, OperationError>) -> Result<(), RunError> {
         // println!("ActualTracer: {ip} {op} {result:?} {} {}", self.total_pops, self.total_pushes);
         if self.total_pops == u32::MAX || self.total_pushes == u32::MAX {
-            return Err(RunError::TracerInterrupt(0, format!("trace size overflow")))
+            return Err(RunError::TracerInterrupt(0, "trace size overflow".to_string()))
         }
 
         if matches!(result, Ok(Effect::SaveAndSetInstructionPointer(_))) {
@@ -1417,7 +1417,7 @@ impl Tracer for ActualTracer {
             self.start_block_location = ip;
             self.start_block_ix = self.ips.len();
         }
-        return true;
+        true
     }
 }
 
@@ -1434,7 +1434,7 @@ impl ActualTracer {
         let dir = if rev { -1 } else { 1 };
 
         let opt = if rev {
-            self.ip_lookup.range(..=ip).rev().next()
+            self.ip_lookup.range(..=ip).next_back()
         } else {
             self.ip_lookup.range(ip..).next()
         };
@@ -1476,7 +1476,7 @@ impl TraceProvider for ActualTracer {
             self.get_pushes(ix)
         })
     }
-    fn get_observed_stack_values<'a>(&'a mut self, ip: usize, depths: &[usize]) -> Vec<Vec<i64>> {
+    fn get_observed_stack_values(&mut self, ip: usize, depths: &[usize]) -> Vec<Vec<i64>> {
         let mut results = Vec::new();
         // for trace_ix in self.find_trace_ix(ip) {
         //     for 
@@ -1518,7 +1518,7 @@ impl TraceProvider for ActualTracer {
     }
     fn is_lazy(&self) -> bool { false }
 
-    fn get_branch_targets<'a>(&'a mut self, ip: usize) -> impl Iterator<Item = usize> {
+    fn get_branch_targets(&mut self, ip: usize) -> impl Iterator<Item = usize> {
         self.find_trace_ix(ip).flat_map(|ix| self.get_next_ip(ix))
     }
 }
@@ -1587,7 +1587,7 @@ impl OptimizingVM {
                 let opt_block = self.opt.optimized_blocks.get(&key);
                 let visit_ctr = self.opt.visit_counter.get(&key);
 
-                write!(stats_file, "{ip},{rev},{},{},{}", opt_block.is_some(), visit_ctr.map_or(false, |x| x.supressed), visit_ctr.map_or(-1, |x| x.counter as i64)).unwrap();
+                write!(stats_file, "{ip},{rev},{},{},{}", opt_block.is_some(), visit_ctr.is_some_and(|x| x.supressed), visit_ctr.map_or(-1, |x| x.counter as i64)).unwrap();
 
                 if let Some(cfg) = opt_block.and_then(|b| b.cfg.as_ref()) {
                     write!(stats_file, ",{},{},{}",
@@ -1678,7 +1678,7 @@ impl OptimizingVM {
                     result
                 } else {
                     self.obc_regs.clear_debug_set_bitmap();
-                    Self::interpret_block(&opt_block, &mut s.stack, &mut self.obc_regs, self.conf.error_as_deopt)
+                    Self::interpret_block(opt_block, &mut s.stack, &mut self.obc_regs, self.conf.error_as_deopt)
                 };
 
                 if should_log_runtime {
@@ -1791,7 +1791,7 @@ impl OptimizingVM {
 
         if let Some(dump_dir) = &self.conf.info_dump_dir {
             use std::io::Write;
-            let mut f = BufWriter::new(File::create(Path::new(dump_dir).join(&format!("compiled-{}{}-cfg.txt", start_ip, if reversed { "-rev" } else { "" }))).unwrap());
+            let mut f = BufWriter::new(File::create(Path::new(dump_dir).join(format!("compiled-{}{}-cfg.txt", start_ip, if reversed { "-rev" } else { "" }))).unwrap());
             writeln!(f, "Optimized at {start_ip} rev={reversed}: {cfg_instr_count} instructions, from {gain_from} ksplang").unwrap();
             writeln!(f, "{cfg}").unwrap();
             if let Some(obc) = &osmibytecode {
@@ -1800,23 +1800,23 @@ impl OptimizingVM {
         }
 
         if self.conf.should_log(2) {
-            println!("Optimized at {}{}:", start_ip, reversed.then_some(" reversed").unwrap_or(""));
+            println!("Optimized at {}{}:", start_ip, if reversed { " reversed" } else { "" });
             println!("{}", cfg);
-            println!("");
+            println!();
             if let Some(obc) = &osmibytecode {
                 println!("Osmibytecode:");
                 println!("{}", obc);
-                println!("");
+                println!();
             }
             println!("===================================================================");
         }
 
         let b = OptimizedBlock {
             cfg: (osmibytecode.is_none() || self.conf.verify > 0).then(|| Box::new(cfg)),
-            osmibytecode: osmibytecode,
+            osmibytecode,
             original_tracer: (self.conf.verify >= 3 && tracer.is_some()).then(|| Box::new(tracer.unwrap())),
-            reversed: reversed,
-            start_ip: start_ip,
+            reversed,
+            start_ip,
             stats: BlockStats::default(),
         };
         s.tracer.insert_block(b);
