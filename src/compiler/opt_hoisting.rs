@@ -374,7 +374,48 @@ fn find_down_hoist_candidates(g: &GraphBuilder, target: BlockId) -> Vec<DownHois
         candidates.push(cand);
     }
 
-    candidates
+    // Validate candidates: reject those with arg_values from different candidates,
+    // and propagate rejection to candidates whose outputs are used by rejected candidates.
+    let out_val_to_candidate: HashMap<ValueId, usize> = candidates.iter()
+        .enumerate()
+        .flat_map(|(ci, cand)| cand.out_vals.iter().map(move |&v| (v, ci)))
+        .collect();
+
+    let mut is_valid = vec![true; candidates.len()];
+    let mut reject_queue: Vec<usize> = Vec::new();
+
+    // Find initially invalid candidates (arg_values from multiple different candidates)
+    for (ci, cand) in candidates.iter().enumerate() {
+        for arg_vals in &cand.arg_values {
+            let groups: SmallVec<[usize; 4]> = arg_vals.iter()
+                .filter_map(|v| out_val_to_candidate.get(v).copied())
+                .collect();
+            if !all_equal(groups.iter()) {
+                is_valid[ci] = false;
+                reject_queue.push(ci);
+                break;
+            }
+        }
+    }
+
+    // Propagate: if A is rejected, reject all candidates whose outputs A uses
+    while let Some(invalid_ci) = reject_queue.pop() {
+        for v in candidates[invalid_ci].arg_values.iter().flatten() {
+            if let Some(&dep_ci) = out_val_to_candidate.get(v) {
+                if is_valid[dep_ci] {
+                    is_valid[dep_ci] = false;
+                    reject_queue.push(dep_ci);
+                }
+            }
+        }
+    }
+
+    candidates.into_iter()
+        .enumerate()
+        .filter_map(|(ci, cand)| {
+            is_valid[ci].then_some(cand)
+        })
+        .collect()
 }
 
 /// Try to create a candidate from a set of values (one per predecessor).
