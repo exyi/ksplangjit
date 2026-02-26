@@ -261,7 +261,7 @@ pub fn hoist_down(g: &mut GraphBuilder, target: BlockId) -> bool {
                 }
                 // all branches must resolve to the same value, otherwise we are fucked and actually cannot correctly construct the CFG
                 assert!(arg_vals.iter().all(|v| resolve_map.get(v) == Some(resolved)),
-                        "oh shit, this a known bug, please disable down-hoisting with KSPLANGJIT_ALLOW_DOWNHOISTING=0\n\n{cand:?}"); // TODO: 
+                        "this shit should not happen anymore");
                 *resolved
             } else {
                 let new_param = find_or_create_param(g, target, &incoming, arg_vals);
@@ -288,17 +288,6 @@ pub fn hoist_down(g: &mut GraphBuilder, target: BlockId) -> bool {
     }
 
     // mark removed output parameters as replaced with the values computed by hoisted instructions
-    // g.replace_values(replacements);
-    // let replacements: BTreeMap<ValueId, ValueId> = candidates.iter()
-    //     .filter_map(|c| {
-    //         let xx = c.out_vals[]
-    //         c.param_index.map(|pi| (orig_params[pi], resolve_map[&c.out_vals[0]]))
-    //     })
-    //     .collect();
-    // println!("orig_args={orig_args:?}");
-    // println!("orig_params={orig_params:?}");
-    // println!("param_indices={param_indices:?}");
-    // println!("resolve_map={resolve_map:?}");
     let replacements: BTreeMap<ValueId, ValueId> =
         param_indices.iter()
             // .filter_map(|(&i, &arg)| resolve_map.get(&arg).map(|x| (orig_params[i], *x)))
@@ -386,48 +375,7 @@ fn find_down_hoist_candidates(g: &GraphBuilder, target: BlockId) -> Vec<DownHois
         candidates.push(cand);
     }
 
-    // Validate candidates: reject those with arg_values from different candidates,
-    // and propagate rejection to candidates whose outputs are used by rejected candidates.
-    let out_val_to_candidate: HashMap<ValueId, usize> = candidates.iter()
-        .enumerate()
-        .flat_map(|(ci, cand)| cand.out_vals.iter().map(move |&v| (v, ci)))
-        .collect();
-
-    let mut is_valid = vec![true; candidates.len()];
-    let mut reject_queue: Vec<usize> = Vec::new();
-
-    // Find initially invalid candidates (arg_values from multiple different candidates)
-    for (ci, cand) in candidates.iter().enumerate() {
-        for arg_vals in &cand.arg_values {
-            let groups: SmallVec<[usize; 4]> = arg_vals.iter()
-                .filter_map(|v| out_val_to_candidate.get(v).copied())
-                .collect();
-            if !all_equal(groups.iter()) {
-                is_valid[ci] = false;
-                reject_queue.push(ci);
-                break;
-            }
-        }
-    }
-
-    // Propagate: if A is rejected, reject all candidates whose outputs A uses
-    while let Some(invalid_ci) = reject_queue.pop() {
-        for v in candidates[invalid_ci].arg_values.iter().flatten() {
-            if let Some(&dep_ci) = out_val_to_candidate.get(v) {
-                if is_valid[dep_ci] {
-                    is_valid[dep_ci] = false;
-                    reject_queue.push(dep_ci);
-                }
-            }
-        }
-    }
-
-    candidates.into_iter()
-        .enumerate()
-        .filter_map(|(ci, cand)| {
-            is_valid[ci].then_some(cand)
-        })
-        .collect()
+    candidates
 }
 
 /// Try to create a candidate from a set of values (one per predecessor).
