@@ -1,6 +1,6 @@
 //! Functions for executing ksplang programs.
 use core::panic;
-use std::{collections::{BTreeMap, BTreeSet}, fs::{File, create_dir_all}, io::{BufWriter, Write}, mem, path::Path, sync::Arc};
+use std::{cmp::Reverse, collections::{BTreeMap, BTreeSet}, fs::{File, create_dir_all}, io::{BufWriter, Write}, mem, num::Wrapping, path::Path, sync::Arc};
 use rustc_hash::{FxHashMap as HashMap};
 
 use num_integer::{Integer, Roots};
@@ -1623,6 +1623,68 @@ impl OptimizingVM {
 
                 writeln!(stats_file).unwrap();
             }
+            let mut blocks = self.opt.optimized_blocks.values().collect::<Vec<_>>();
+            let total_entries: u64 = blocks.iter().map(|b| b.stats.entry_count as u64).sum();
+            let total_ops: u64 = blocks.iter().map(|b| b.stats.cfg_op_count).sum();
+            let Wrapping(total_ksplang) = blocks.iter().map(|b| Wrapping(b.stats.ksplang_op_count)).sum();
+
+            fn fmt_int(n: impl ToString) -> String {
+                n.to_string()
+                    .as_bytes()
+                    .rchunks(3).rev()
+                    .map(|x| std::str::from_utf8(x).unwrap())
+                    .collect::<Vec<_>>()
+                    .join("_")
+            }
+
+
+            let write_block_summary = |b: &OptimizedBlock| {
+                let runs = b.stats.entry_count as f64;
+                let runs_percent = runs / total_entries as f64 * 100.0;
+                let ops_per_run = b.stats.cfg_op_count as f64 / runs;
+                let ops_percent = b.stats.cfg_op_count as f64 / total_ops as f64 * 100.0;
+                let ksplang_per_run = b.stats.ksplang_op_count as f64 / runs;
+                let ksplang_percent = b.stats.cfg_op_count as f64 / total_ksplang as f64 * 100.0;
+
+                print!("{}{:>8} {:>10} starts ({:>4.1}%) {:>12} ops ({:>4.1}%, {:>5.1} per run) {:>14} ksplang ({:4.1}%, {:>5.1} per run)  ",
+                          if b.reversed { "R" } else { " " },
+                            b.start_ip,
+                                   fmt_int(b.stats.entry_count),
+                                                 runs_percent,
+                                                           fmt_int(b.stats.cfg_op_count),
+                                                                       ops_percent, ops_per_run,  fmt_int(b.stats.ksplang_op_count),
+                                                                                                                  ksplang_percent, ksplang_per_run
+                );
+
+                print!("exits:");
+                let mut gg = b.stats.exit_count.iter().collect::<Vec<_>>();
+                gg.sort_by_key(|(_, count)| Reverse(*count));
+                for (nn, count) in gg {
+                    print!("  {}x{}", count, nn);
+                }
+                println!();
+            };
+
+            blocks.sort_by_cached_key(|b| Reverse(b.stats.entry_count));
+            println!("Top 5 blocks by number of starts:");
+            for b in blocks.iter().take(5) {
+                write_block_summary(b);
+            }
+            println!();
+
+            blocks.sort_by_cached_key(|b| Reverse(b.stats.cfg_op_count));
+            println!("Top 5 blocks by number of ops:");
+            for b in blocks.iter().take(5) {
+                write_block_summary(b);
+            }
+            println!();
+
+            blocks.sort_by_cached_key(|b| Reverse(b.stats.cfg_op_count));
+            println!("Top 5 blocks by number of ksplang instructions:");
+            for b in blocks.iter().take(5) {
+                write_block_summary(b);
+            }
+            println!();
         }
 
         match result {

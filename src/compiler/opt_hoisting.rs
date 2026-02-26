@@ -422,7 +422,6 @@ fn try_make_candidate(g: &GraphBuilder,
     // * other instructions which are are hoisting already
     // and it must be used in exactly the same way in all blocks
     let signatures: Option<Vec<_>> = values.iter().map(|&v| downhoist_candidate_usage_signature(g, allowed_instrs, v)).collect();
-    println!("signatures: {signatures:?}");
     let Some(signatures) = signatures else {
         return None
     };

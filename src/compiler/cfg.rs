@@ -110,9 +110,10 @@ impl BasicBlock {
             writeln!(f, "    // preds: {}", self.predecessors.iter().map(|b| format!("{}", b)).collect::<Vec<_>>().join(", "))?;
         }
         if !self.incoming_jumps.is_empty() || !self.is_sealed {
-            writeln!(f, "    // incoming: {}{}",
+            writeln!(f, "    // incoming: {}{}{}",
                 self.incoming_jumps.iter().map(|j| format!("{}", j)).collect::<Vec<_>>().join(", "),
-                if self.is_sealed { "" } else { " (not sealed)" }
+                if self.is_sealed { "" } else { " (not sealed)" },
+                if self.is_reachable { "" } else { " (not reachable)"}
             )?;
         }
         if !self.outgoing_jumps.is_empty() {
