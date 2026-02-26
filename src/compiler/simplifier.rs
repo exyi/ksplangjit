@@ -2058,12 +2058,16 @@ pub fn simplify_instr(cfg: &mut GraphBuilder, mut i: OptInstr) -> (OptInstr, Opt
                             let cond2 = simplify_cond(cfg, select_cond.clone(), i.id);
                             match cond_implies(cfg, &cond, &cond2, i.id) {
                                 Some(Condition::True) => {
-                                    println!("Managed to simplify {input} ref under condition {cond} to {}, as it implies {select_cond} to be true\n in {} {:?}", select_inputs[0], i.id, i.op);
+                                    if cfg.conf.should_log(20) {
+                                        println!("Managed to simplify {input} ref under condition {cond} to {}, as it implies {select_cond} to be true\n in {} {:?}", select_inputs[0], i.id, i.op);
+                                    }
                                     *input = select_inputs[0];
                                     changed = true;
                                 }
                                 Some(Condition::False) => {
-                                    println!("Managed to simplify {input} ref under condition {cond} to {}, as it implies {select_cond} to be false\n in {} {:?}", select_inputs[1], i.id, i.op);
+                                    if cfg.conf.should_log(20) {
+                                        println!("Managed to simplify {input} ref under condition {cond} to {}, as it implies {select_cond} to be false\n in {} {:?}", select_inputs[1], i.id, i.op);
+                                    }
                                     *input = select_inputs[1];
                                     changed = true;
                                 }

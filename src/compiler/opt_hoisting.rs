@@ -1,7 +1,8 @@
-use smallvec::{smallvec, SmallVec};
-use rustc_hash::{FxHashMap as HashMap};
+use num_traits::sign;
+use smallvec::{SmallVec, ToSmallVec, smallvec};
+use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::{collections::{BTreeMap, BTreeSet}};
 
 use crate::compiler::{
     cfg::{BasicBlock, GraphBuilder}, ops::{BeforeOrAfter, BlockId, InstrId, OpEffect, OptInstr, OptOp, ValueId}, osmibytecode::Condition, range_ops::IRange, utils::{Annotations, FULL_RANGE, RemoveAll, all_equal, union_range}
@@ -223,19 +224,21 @@ pub fn hoist_down(g: &mut GraphBuilder, target: BlockId) -> bool {
 
     let incoming = g.block_(target).incoming_jumps.clone();
     let orig_params = g.block_(target).parameters.clone();
+    let orig_args = g.get_instruction_(incoming[0]).inputs.clone();
 
     candidates.sort_by_key(|c| c.source_instrs[0].instr_ix());
 
-    let mut param_indices: SmallVec<[usize; 4]> = candidates.iter()
-        .filter_map(|c| c.param_index)
-        .collect();
-    param_indices.sort();
-    param_indices.dedup();
+    let removed_values: HashSet<ValueId> = candidates.iter().flat_map(|c| &c.out_vals).copied().collect();
+    let param_indices: Vec<usize> =
+        g.get_instruction_(incoming[0]).inputs.iter()
+            .enumerate().filter_map(|(i, v)| removed_values.contains(v).then_some(i))
+            .collect();
+
     g.block_mut_(target).parameters.remove_all(&param_indices);
     for &jump_id in &incoming {
-        g.update_instr_inuts(jump_id, |jump|
+        g.update_instr_inuts(jump_id, |jump| {
             jump.inputs.remove_all(&param_indices)
-        );
+        });
     }
 
     for cand in candidates.iter().rev() {
@@ -248,7 +251,7 @@ pub fn hoist_down(g: &mut GraphBuilder, target: BlockId) -> bool {
 
     for cand in candidates.iter() {
         if g.conf.should_log(10) {
-            println!("  Processing candidate: {:?} out_vals={:?} param_index={:?} ids={:?}", cand.op, cand.out_vals, cand.param_index, cand.source_instrs);
+            println!("  Processing candidate: {:?} out_vals={:?} ids={:?}", cand.op, cand.out_vals, cand.source_instrs);
             println!("    arg_values={:?}", cand.arg_values);
         }
         let new_inputs: SmallVec<[ValueId; 4]> = cand.arg_values.iter().enumerate().map(|(i, arg_vals)| {
@@ -275,7 +278,7 @@ pub fn hoist_down(g: &mut GraphBuilder, target: BlockId) -> bool {
         g.assumed_program_position = saved;
 
         if g.conf.should_log(5) {
-            println!("Down-hoisted {:?} {:?} -> {} (param_index={:?})", cand.op, new_inputs, new_val, cand.param_index);
+            println!("Down-hoisted {:?} {:?} -> {}", cand.op, new_inputs, new_val);
         }
 
         for &out_val in &cand.out_vals {
@@ -284,12 +287,25 @@ pub fn hoist_down(g: &mut GraphBuilder, target: BlockId) -> bool {
         }
     }
 
-    let replacements: BTreeMap<ValueId, ValueId> = candidates.iter()
-        .filter_map(|c| c.param_index.map(|pi| (orig_params[pi], resolve_map[&c.out_vals[0]])))
-        .collect();
-    if !replacements.is_empty() {
-        g.replace_values(replacements);
-    }
+    // mark removed output parameters as replaced with the values computed by hoisted instructions
+    // g.replace_values(replacements);
+    // let replacements: BTreeMap<ValueId, ValueId> = candidates.iter()
+    //     .filter_map(|c| {
+    //         let xx = c.out_vals[]
+    //         c.param_index.map(|pi| (orig_params[pi], resolve_map[&c.out_vals[0]]))
+    //     })
+    //     .collect();
+    // println!("orig_args={orig_args:?}");
+    // println!("orig_params={orig_params:?}");
+    // println!("param_indices={param_indices:?}");
+    // println!("resolve_map={resolve_map:?}");
+    let replacements: BTreeMap<ValueId, ValueId> =
+        param_indices.iter()
+            // .filter_map(|(&i, &arg)| resolve_map.get(&arg).map(|x| (orig_params[i], *x)))
+            .map(|&i| (orig_params[i], resolve_map[&orig_args[i]]))
+            .collect();
+    // g.replaced_values.append(&mut replacements);
+    g.replace_values(replacements);
 
     true
 }
@@ -320,8 +336,6 @@ fn find_or_create_param(g: &mut GraphBuilder, target: BlockId, incoming: &[Instr
 
 #[derive(Debug)]
 struct DownHoistCandidate {
-    /// Index into the original block parameters, or None for transitive candidates.
-    param_index: Option<usize>,
     op: OptOp<ValueId>,
     out_vals: SmallVec<[ValueId; 4]>,
     source_instrs: SmallVec<[InstrId; 4]>,
@@ -337,37 +351,35 @@ fn find_down_hoist_candidates(g: &GraphBuilder, target: BlockId) -> Vec<DownHois
     let incoming = &target_block.incoming_jumps;
     let params = &target_block.parameters;
 
-    let mut queue: Vec<(SmallVec<[ValueId; 4]>, Option<usize>)> = Vec::new();
+    let mut queue: Vec<SmallVec<[ValueId; 4]>> = Vec::new();
     for (param_ix, _) in params.iter().enumerate() {
         let values: SmallVec<[ValueId; 4]> = incoming.iter().map(|&jump_id|
             g.get_instruction_(jump_id).inputs[param_ix]
         ).collect();
-        queue.push((values, Some(param_ix)));
+        queue.push(values);
     }
 
     let mut candidates = Vec::new();
-    let mut hoisted_instrs = BTreeSet::new();
+    // mapping instrId -> candidate ID
+    // value will be hoisted if it's used
+    //  * in the same instructions as identified by candidate ID
+    //  * in the same positions
+    let mut allowed_instrs = BTreeMap::new();
+    for x in incoming { allowed_instrs.insert(*x, usize::MAX); };
 
-    while let Some((values, param_index)) = queue.pop() {
-        let Some(cand) = try_make_candidate(g, incoming, &hoisted_instrs, values.clone(), param_index) else {
+    while let Some(values) = queue.pop() {
+        let Some(cand) = try_make_candidate(g, incoming, &allowed_instrs, &values) else {
             if g.conf.should_log(5) {
-                println!("  Down-hoist candidate rejected: values={values:?}, param_index={param_index:?}");
+                println!("  Down-hoist candidate rejected: values={values:?}");
             }
             continue;
         };
 
-        hoisted_instrs.extend(&cand.source_instrs);
+        allowed_instrs.extend(cand.source_instrs.iter().map(|i| (*i, candidates.len())));
 
         for arg_vals in &cand.arg_values {
             if !all_equal(arg_vals.iter()) {
-                // Check if these values are also a block parameter
-                // TODO: wtf
-                let matching_param = params.iter().enumerate().position(|(pi, _)| {
-                    incoming.iter().enumerate().all(|(pred_ix, &jid)| {
-                        g.get_instruction_(jid).inputs[pi] == arg_vals[pred_ix]
-                    })
-                });
-                queue.push((arg_vals.clone(), matching_param));
+                queue.push(arg_vals.clone());
             }
         }
 
@@ -420,12 +432,10 @@ fn find_down_hoist_candidates(g: &GraphBuilder, target: BlockId) -> Vec<DownHois
 
 /// Try to create a candidate from a set of values (one per predecessor).
 /// Returns None if the values can't be down-hoisted.
-fn try_make_candidate(
-    g: &GraphBuilder,
-    incoming: &[InstrId],
-    hoisted_instrs: &BTreeSet<InstrId>,
-    values: SmallVec<[ValueId; 4]>,
-    param_index: Option<usize>,
+fn try_make_candidate(g: &GraphBuilder,
+                      incoming: &[InstrId],
+                      allowed_instrs: &BTreeMap<InstrId, usize>,
+                      values: &[ValueId],
 ) -> Option<DownHoistCandidate> {
     if !values.iter().any(ValueId::is_computed) {
         return None;
@@ -433,7 +443,6 @@ fn try_make_candidate(
     // All values must be computed by the same op in their respective predecessor blocks
     let mut source_instrs: SmallVec<[InstrId; 4]> = smallvec![];
     let mut op = None;
-    let mut arity = 0;
     for (pred_ix, &val) in values.iter().enumerate() {
         let defined_at = g.val_info_(val).assigned_at?;
         if defined_at.block_id() != incoming[pred_ix].block_id() { return None; }
@@ -444,35 +453,33 @@ fn try_make_candidate(
         // TODO: can we do something with effectful instructions? Oo
         if !matches!(instr.effect, OpEffect::None | OpEffect::CtrIncrement) { return None; }
 
+        debug_assert!(!matches!(instr.op, OptOp::Jump(_, _) | OptOp::Checkpoint | OptOp::Pop | OptOp::Push | OptOp::StackSwap | OptOp::StackRead | OptOp::Nop));
+
         match &op {
             None => {
-                debug_assert!(!matches!(instr.op, OptOp::Jump(_, _) | OptOp::Checkpoint | OptOp::Pop | OptOp::Push | OptOp::StackSwap | OptOp::StackRead | OptOp::Nop));
-                arity = instr.inputs.len();
-                op = Some(instr.op.clone());
+                op = Some((instr.op.clone(), instr.inputs.len()));
             }
-            Some(op) => {
-                if &instr.op != op || instr.inputs.len() != arity { return None; }
+            Some((op, arity)) => {
+                if &instr.op != op || instr.inputs.len() != *arity { return None; }
             }
         }
         source_instrs.push(defined_at);
     }
-    let op = op.unwrap();
+    let (op, arity) = op.unwrap();
 
-    if source_instrs.iter().all(|s| hoisted_instrs.contains(s)) { return None; }
+    if source_instrs.iter().all(|s| allowed_instrs.contains_key(s)) { return None; }
 
-    // Value must only be used by the jump or by instructions we're already hoisting.
-    for (pred_ix, &val) in values.iter().enumerate() {
-        let jump_instr = g.get_instruction_(incoming[pred_ix]);
-        if jump_instr.inputs.iter().filter(|&&v| v == val).count() > 1 {
-            // Also reject if the value appears at multiple positions in the jump's inputs,
-            // since removing the source instruction would leave the other positions dangling.
-            return None;
-        }
-        for &u in &g.val_info(val)?.used_at {
-            if u != incoming[pred_ix] && !hoisted_instrs.contains(&u) {
-                return None;
-            }
-        }
+    // value is only allowed to be used in
+    // * the jump
+    // * other instructions which are are hoisting already
+    // and it must be used in exactly the same way in all blocks
+    let signatures: Option<Vec<_>> = values.iter().map(|&v| downhoist_candidate_usage_signature(g, allowed_instrs, v)).collect();
+    println!("signatures: {signatures:?}");
+    let Some(signatures) = signatures else {
+        return None
+    };
+    if !all_equal(signatures.iter()) {
+        return None
     }
 
     let mut arg_values: Vec<SmallVec<[ValueId; 4]>> = vec![smallvec![]; arity];
@@ -484,13 +491,43 @@ fn try_make_candidate(
 
     let program_position = g.get_instruction_(source_instrs[0]).program_position;
     Some(DownHoistCandidate {
-        param_index,
         op,
         source_instrs,
-        out_vals: values,
+        out_vals: values.to_smallvec(),
         arg_values,
         program_position,
     })
+}
+
+fn downhoist_candidate_usage_signature(g: &GraphBuilder,
+                                       allowed_instrs: &BTreeMap<InstrId, usize>,
+                                       val: ValueId
+) -> Option<Vec<(usize, usize)>> {
+    let info = g.val_info_(val);
+    let defined_at = info.assigned_at.unwrap();
+    debug_assert!(!info.used_at.is_empty());
+
+    let mut result: Vec<(usize, usize)> = vec![];
+    for &used_at_id in &info.used_at {
+
+        if used_at_id.block_id() != defined_at.block_id() { return None }
+
+        let used_at = g.get_instruction_(used_at_id);
+
+        let Some(&candidate_id) = allowed_instrs.get(&used_at_id) else {
+            return None
+        };
+        debug_assert_eq!(candidate_id == usize::MAX, matches!(used_at.op, OptOp::Jump(_, _)));
+
+        for (i, arg) in used_at.iter_inputs().enumerate() {
+            if arg == val {
+                result.push((candidate_id, i));
+            }
+        }
+    }
+
+    result.sort();
+    Some(result)
 }
 
 /// Find instructions that appear in all blocks, grouped by (op, inputs).

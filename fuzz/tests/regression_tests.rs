@@ -903,3 +903,41 @@ fn fuzz_downhoisting_mixed_hoisted_args() {
     let ops = vec![ DigitSum, DigitSum, Call, DigitSum, Jump, Call, Call, Call, Call, DigitSum, LSwap, Modulo, BranchIfZero, BranchIfZero, DigitSum, Increment, Increment, Increment, DigitSum, DigitSum, Remainder, Universal, Increment, Modulo, Increment, Increment, Increment, DigitSum, Increment, Increment, DigitSum, DigitSum, Modulo, Universal, DigitSum, DigitSum, DigitSum, LenSum, Universal, DigitSum, DigitSum, LenSum, Increment, DigitSum, DigitSum, LenSum, Universal, DigitSum ];
     verify_repro_const(ops, vec![251], vec![3240293197518270441]);
 }
+
+#[test]
+fn fuzz_downhoisting_claudes_sketchy_fixes_would_break_this_one1() {
+    let ops = vec![ DigitSum, DigitSum, Call, Modulo, DigitSum, LSwap, Modulo, BranchIfZero, BranchIfZero, BranchIfZero, Increment, DigitSum, Increment, TetrationItersNum, DigitSum, DigitSum, Increment, DigitSum, Bitshift, DigitSum ];
+    verify_repro_const(ops, vec![0], vec![3178978386970148608]);
+}
+
+#[test]
+fn fuzz_downhoisting_claudes_sketchy_fixes_would_break_this_one2() {
+   let ops = vec![ DigitSum, DigitSum, Call, DigitSum, Jump, Call, Call, Call, Call, DigitSum, LSwap, Modulo, BranchIfZero, BranchIfZero, Median, Increment, Max, Bitshift, DigitSum, Increment, DigitSum, DigitSum, DigitSum, Bitshift, DigitSum ];
+   verify_repro_const(ops, vec![0], vec![-4671711111665948697]);
+}
+
+
+#[test]
+fn fuzz_downhoisting_claudes_sketchy_fixes_would_break_this_one3() {
+   let ops = vec![ DigitSum, DigitSum, Call, Modulo, DigitSum, LSwap, Modulo, BranchIfZero, BranchIfZero, BranchIfZero, Increment, DigitSum, Increment, TetrationItersNum, DigitSum, DigitSum, Increment, DigitSum, Bitshift, DigitSum ];
+   verify_repro_const(ops, vec![0], vec![3178978386970148608]);
+}
+
+#[test]
+fn fuzz_downhoisting_original_parameter_not_replaced() {
+   let ops = vec![ DigitSum, Gcd2, DigitSum, LSwap, BranchIfZero, LSwap, Swap, DigitSum, DigitSum, DigitSum, Swap, DigitSum, DigitSum, DigitSum, Increment, Bitshift, Increment, DigitSum, DigitSum, DigitSum, DigitSum, DigitSum, Remainder, Call ];
+   verify_repro_const(ops, vec![0], vec![53]);
+}
+
+#[test]
+fn fuzz_downhoisting_one_more_test_for_too_eager_candidate_selection() {
+    let ops = vec![ DigitSum, Gcd2, Median, LSwap, BranchIfZero, LSwap, Swap, Max, Max, DigitSum, DigitSum, DigitSum, Max, DigitSum, Increment, Bitshift, Increment, Increment, DigitSum, DigitSum, DigitSum, DigitSum, Remainder, Call ];
+    verify_repro_const(ops, vec![0], vec![-1585469381741707319, 233928224931788927]);
+}
+
+
+// #[test]
+fn fuzz_excessive_complexity() {
+    let ops = vec![ DigitSum, DigitSum, DigitSum, DigitSum, Swap, Swap, Modulo, DigitSum, Increment, DigitSum, Increment, DigitSum, DigitSum, LenSum, Universal, DigitSum, Increment, DigitSum, Increment, DigitSum, DigitSum, LenSum, Universal, DigitSum, Increment, LenSum, DigitSum, LenSum, Universal, Increment, Increment, DigitSum, DigitSum, Increment, DigitSum, DigitSum, LenSum, Universal, DigitSum, Increment, Increment, DigitSum, LenSum, DigitSum, LenSum, Universal, DigitSum, Increment, DigitSum, Increment, LenSum, DigitSum, LenSum, Universal, Increment, Increment, DigitSum, DigitSum, LenSum, DigitSum, LenSum, Call ];
+    verify_repro_const(ops, vec![-1736164148113867035], vec![1661534429]);
+}
