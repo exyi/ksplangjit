@@ -66,6 +66,12 @@ impl<'a> Compiler<'a> {
     pub fn compile(&mut self) {
         let block_ids = reverse_postorder(self.g);
         for bid in block_ids {
+            if let Some(OsmibyteOp::Jump(Condition::True, _)) = self.program.last() &&
+                Some(&(self.program.len() - 1, bid)) == self.jump_fixups.last()
+            {
+                self.program.pop();
+                self.jump_fixups.pop();
+            }
             let start = self.program.len();
             let start_u16: u16 = start.try_into().expect("precompiled program exceeds 65535 ops");
             self.block_starts.insert(bid, start_u16);
