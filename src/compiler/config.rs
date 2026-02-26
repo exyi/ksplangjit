@@ -102,10 +102,10 @@ fn create_config() -> JitConfig {
         allow_osmibyte_backend: parse_env("KSPLANGJIT_ALLOW_OSMIBYTE_BACKEND", true),
         verify: parse_env("KSPLANGJIT_VERIFY", 1),
         trace_limit: parse_env("KSPLANGJIT_TRACE_LIMIT", 1000),
-        trace_trigger_count: parse_env("KSPLANGJIT_TRIGGER_COUNT", 3),
+        trace_trigger_count: parse_env("KSPLANGJIT_TRIGGER_COUNT", 100),
         min_gain_const: parse_env("KSPLANGJIT_MIN_GAIN_CONST", 5),
         min_gain_mul: parse_env("KSPLANGJIT_MIN_GAIN_MUL", 2),
-        yield_interval: parse_env("KSPLANGJIT_YIELD_INTERVAL", 10),
+        yield_interval: parse_env("KSPLANGJIT_YIELD_INTERVAL", 300),
 
         shrinker_final_verbosity: parse_env("KSPLANGJIT_SHRINKER_FINAL_VERBOSITY", verbosity),
 
