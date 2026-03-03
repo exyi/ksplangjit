@@ -936,8 +936,14 @@ fn fuzz_downhoisting_one_more_test_for_too_eager_candidate_selection() {
 }
 
 
-// #[test]
-fn fuzz_excessive_complexity() {
+#[test]
+fn fuzz_excessive_add_mul_simplification() {
     let ops = vec![ DigitSum, DigitSum, DigitSum, DigitSum, Swap, Swap, Modulo, DigitSum, Increment, DigitSum, Increment, DigitSum, DigitSum, LenSum, Universal, DigitSum, Increment, DigitSum, Increment, DigitSum, DigitSum, LenSum, Universal, DigitSum, Increment, LenSum, DigitSum, LenSum, Universal, Increment, Increment, DigitSum, DigitSum, Increment, DigitSum, DigitSum, LenSum, Universal, DigitSum, Increment, Increment, DigitSum, LenSum, DigitSum, LenSum, Universal, DigitSum, Increment, DigitSum, Increment, LenSum, DigitSum, LenSum, Universal, Increment, Increment, DigitSum, DigitSum, LenSum, DigitSum, LenSum, Call ];
     verify_repro_const(ops, vec![-1736164148113867035], vec![1661534429]);
+}
+
+#[test]
+fn fuzz_obc_backend_ran_out_of_temp_registers() {
+    let ops = vec![ DigitSum, Gcd2, BulkXor, Jump, Increment, BulkXor, Median, Median, Median, Median, Median, Median, Median, Median, Median, Median, Median, Median, Median, Median, Median, Median, Median, Median, Jump, Increment, DigitSum, DigitSum, Increment, Roll, BranchIfZero ];
+    verify_repro_const(ops, vec![0], vec![2810246167605003050, 8646893688070340608, 8031931820133480323]);
 }

@@ -68,10 +68,12 @@ Key env variables:
 
 ## Debugging Tips
 
-- println! and dbg! and search
+- println! + dbg! and search
+- don't both with log level for temporary prints
+- prefix DBG for temp logs, i.e.: `println!("DBG1 {a} {b}`)`
 - Add (debug_)?assert! if it seems something is getting into invalid state
 - CFG, Osmibytecode and many other structs implement `Display` for readable IR dumps
-- most fuzz_repro can be fixed very simply
+- most fuzz_repro can be fixed very simply, but it may not be easy to find the bug
 
 ## Other
 

@@ -1723,7 +1723,7 @@ pub fn simplify_instr(cfg: &mut GraphBuilder, mut i: OptInstr) -> (OptInstr, Opt
             }
         }
 
-        if OptOp::Mul == i.op {
+        if OptOp::Mul == i.op && i.inputs.len() <= 3 {
             // (a + b) * c => a * c + b * c
             // only valid if at all a, b have the same sign, otherwise we are introducing overfows
             for (arg_ix, &val) in i.inputs.clone().iter().enumerate() {

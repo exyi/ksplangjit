@@ -1,5 +1,5 @@
 use core::fmt;
-use std::{cmp, collections::{BTreeMap, BTreeSet, BinaryHeap}, mem};
+use std::{borrow::Borrow, cmp, collections::{BTreeMap, BTreeSet, BinaryHeap}, mem};
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use smallvec::{SmallVec, smallvec};
 
@@ -1315,8 +1315,7 @@ impl<'a> Compiler<'a> {
                     let val = self.materialize_value_(i.out);
                     let ix = self.materialize_value_(i.inputs[0]);
                     self.program.push(OsmibyteOp::StackWrite(ix, val, 0));
-                    self.temp_regs.release(val);
-                    self.temp_regs.release(ix);
+                    self.temp_regs.release_all([val, ix]);
                 }
                 OptOp::KsplangOpsIncrement(cond) => {
                     if cond == &Condition::True {
@@ -1342,6 +1341,7 @@ impl<'a> Compiler<'a> {
                                 self.temp_regs.release(reg);
                             }
                         }
+                        self.temp_regs.release_all(cond.regs());
                     }
                 }
                 OptOp::Checkpoint => {
@@ -1521,6 +1521,12 @@ impl TempRegPool {
         if reg.0 >= FIRST_TEMP_REG && !self.available.contains(&reg) {
             self.available.push(reg);
             self.cache.clear(); // TODO: fix the cache properly
+        }
+    }
+
+    fn release_all(&mut self, reg: impl IntoIterator<Item = impl Borrow<RegId>>) {
+        for x in reg {
+            self.release(*x.borrow());
         }
     }
 
