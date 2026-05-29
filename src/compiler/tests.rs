@@ -3,7 +3,7 @@ use std::ops::RangeInclusive;
 
 use rand::{Rng, SeedableRng};
 
-use crate::{compiler::{cfg::GraphBuilder, ops::{BlockId, OptOp, ValueId}, osmibytecode::{Condition, OsmibyteOp, OsmibytecodeBlock, RegId}, pattern::OptOptPattern, precompiler::{NoTrace, Precompiler}, utils::FULL_RANGE}, parser, vm::{ActualTracer, NoStats, RunError, RunResult, VMOptions, run_with_stats}};
+use crate::{compiler::{cfg::GraphBuilder, config::get_config, ops::{BlockId, OptOp, ValueId}, osmibytecode::{Condition, OsmibyteOp, OsmibytecodeBlock, RegId}, pattern::OptOptPattern, precompiler::{NoTrace, Precompiler}, test_utils, utils::FULL_RANGE}, parser::{self, parse_program}, vm::{self, ActualTracer, NoStats, RunError, RunResult, VMOptions, run_with_stats}};
 
 const PUSH_0: &str = "CS CS lensum CS funkcia";
 const PUSH_1: &str = "CS CS lensum CS funkcia ++";
@@ -30,21 +30,32 @@ fn precompile<const N: usize>(ksplang: &str, terminate_at: Option<usize>, initia
     }
     let vals = g.stack.stack.clone();
     let mut precompiler = Precompiler::new(&parsed, 1000, false, 0, 100_000, true, terminate_at, g, NoTrace());
+    // precompiler.conf.cheat_mode = 0;
     precompiler.interpret();
     (precompiler.g, vals.try_into().unwrap())
 }
 
 fn test_constant(prog: &str, c: i64) {
+    let conf = get_config();
     let g = precompile(prog, None, []).0;
 
+    let interpret_result = vm::run(&parse_program(prog).unwrap(), VMOptions::new(&[1234], 1000, &[], 10000, u64::MAX)).unwrap();
+    assert_eq!(interpret_result.stack, &[1234, c], "sanity check");
+    assert_eq!(interpret_result.instruction_counter, g.block_(BlockId(0)).ksplang_instr_count as u64);
     for bb in &g.blocks {
         println!("{}", bb);
     }
     println!("Stack: {}", g.fmt_stack());
-    assert_eq!(g.stack.stack_depth, 1);
-    assert_eq!(g.stack.stack_position(), 1);
     assert_eq!(g.get_constant(g.stack.peek().unwrap()), Some(c));
-    assert_eq!(g.current_block_ref().instructions.len(), 3); // Pop + Checkpoint + DeoptAssert(false)
+    if conf.cheat_mode > 0 && g.stack.stack_depth == 0 {
+        // cheat mode will spawn constants without poping the stack
+        assert_eq!(g.stack.stack_position(), 1);
+        assert_eq!(g.current_block_ref().instructions.len(), 2); // Pop + Checkpoint + DeoptAssert(false)
+    } else {
+        assert_eq!(g.stack.stack_depth, 1);
+        assert_eq!(g.stack.stack_position(), 1);
+        assert_eq!(g.current_block_ref().instructions.len(), 3); // Pop + Checkpoint + DeoptAssert(false)
+    }
 }
 
 #[test]
@@ -63,10 +74,18 @@ fn test_constant_0c() {
 fn test_constant_0d() {
     test_constant("CS CS CS ++ CS CS % pop2 pop2 pop2", 0);
 }
-// #[test]
-// fn test_constant_0e() {
-//     test_constant("CS CS ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ bitshift", 0);
-// }
+#[test]
+fn test_constant_0e() {
+    test_constant("CS CS ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ bitshift", 0);
+}
+#[test]
+fn test_constant_i64_min() {
+    test_constant("CS CS lensum CS funkcia ++ praise qeq pop2 pop2 funkcia ++ bitshift pop2 pop2 pop2", i64::MIN);
+}
+#[test]
+fn test_constant_i64_max() {
+    test_constant("CS CS lensum CS funkcia ++ praise qeq pop2 pop2 funkcia ++ bitshift pop2 pop2 pop2 ++ CS CS lensum CS funkcia ++ CS CS % qeq", i64::MAX);
+}
 #[test]
 fn test_constant_n4611686018427387904() {
     test_constant("CS CS lensum ++ CS lensum ++ CS bitshift CS ++ bitshift CS ++ CS funkcia bitshift", -4611686018427387904);
@@ -110,8 +129,14 @@ fn test_constant_7625597484987() {
 
 fn test_dup(ksplang: &str, input_range: RangeInclusive<i64>) {
     let parsed = parser::parse_program(ksplang).unwrap();
+
+    test_utils::verify_repro(parsed.clone(), vec![-300]);
+    test_utils::verify_repro(parsed.clone(), vec![20]);
+
     let mut g = GraphBuilder::new(0);
-    let val = {
+    let val = if input_range.start() == input_range.end()  {
+        g.store_constant(*input_range.start())
+    } else {
         let info = g.new_value();
         info.range = input_range.clone();
         info.id
@@ -131,6 +156,7 @@ fn test_dup(ksplang: &str, input_range: RangeInclusive<i64>) {
         assert_eq!(g.stack.stack, vec![val, val]);
     }
     assert_eq!(2, g.block_(BlockId(0)).instructions.len()); // Checkpoint + DeoptAssert
+
 }
 
 fn test_neg(prog: &str) {
@@ -187,10 +213,10 @@ fn sgn_sgn() {
 
 
 // Duplikace ze vzoráku KSP
-const VZORAKOVA_DUP: &str = "CS CS lensum ++ CS lensum m CS CS lensum CS funkcia CS ++ CS qeq u CS CS lensum CS funkcia ++ bitshift CS CS lensum ++ CS lensum m CS CS lensum CS funkcia CS ++ CS qeq u CS CS lensum CS funkcia ++ bitshift pop2 CS CS lensum ++ CS lensum CS ++ ++ lroll m CS CS lensum CS funkcia ++ CS CS funkcia qeq CS CS lensum CS funkcia ++ bitshift pop2 CS CS lensum CS funkcia u ++ ++ ++ CS CS CS CS lensum CS funkcia CS ++ CS qeq u CS ++ CS lensum CS ++ ++ lroll CS funkcia u CS CS lensum CS funkcia ++ CS ++ ++ lroll CS CS lensum CS funkcia CS ++ CS qeq u CS CS funkcia u";
-const ERIKOVA_DUP: &str = "CS CS lensum CS funkcia cs ++ ++ ++ m cs cs ++ gcd ++ max cs cs rem qeq cs cs cs ++ ++ qeq pop2 cs cs ++ gcd cs cs cs cs bitshift bitshift cs bitshift cs cs pop2 u bitshift cs cs gcd cs ++ lroll cs u cs cs ++ gcd ++ ++ m pop2 pop2";
-const SEJSELOVA_DUP: &str =  "CS CS lensum CS funkcia CS ++ ++ ++ m CS CS ++ gcd ++ max CS CS % qeq CS CS CS ++ ++ qeq pop2 CS j ++ CS praise qeq qeq pop2 funkcia funkcia ++ % bitshift CS CS gcd CS ++ lroll CS u CS CS pop2 CS lensum m pop2 pop2";
-const SEJSELOVA2_DUP: &str = "CS CS lensum CS funkcia CS ++ ++ ++ m CS CS ++ gcd ++ max CS CS % qeq CS CS CS ++ ++ qeq pop2 CS CS ^^ CS praise qeq qeq pop2 funkcia funkcia ++ % bitshift CS CS gcd CS ++ lroll CS u CS CS pop2 CS lensum m pop2 pop2";
+pub const VZORAKOVA_DUP: &str = "CS CS lensum ++ CS lensum m CS CS lensum CS funkcia CS ++ CS qeq u CS CS lensum CS funkcia ++ bitshift CS CS lensum ++ CS lensum m CS CS lensum CS funkcia CS ++ CS qeq u CS CS lensum CS funkcia ++ bitshift pop2 CS CS lensum ++ CS lensum CS ++ ++ lroll m CS CS lensum CS funkcia ++ CS CS funkcia qeq CS CS lensum CS funkcia ++ bitshift pop2 CS CS lensum CS funkcia u ++ ++ ++ CS CS CS CS lensum CS funkcia CS ++ CS qeq u CS ++ CS lensum CS ++ ++ lroll CS funkcia u CS CS lensum CS funkcia ++ CS ++ ++ lroll CS CS lensum CS funkcia CS ++ CS qeq u CS CS funkcia u";
+pub const ERIKOVA_DUP: &str = "CS CS lensum CS funkcia cs ++ ++ ++ m cs cs ++ gcd ++ max cs cs rem qeq cs cs cs ++ ++ qeq pop2 cs cs ++ gcd cs cs cs cs bitshift bitshift cs bitshift cs cs pop2 u bitshift cs cs gcd cs ++ lroll cs u cs cs ++ gcd ++ ++ m pop2 pop2";
+pub const SEJSELOVA_DUP: &str =  "CS CS lensum CS funkcia CS ++ ++ ++ m CS CS ++ gcd ++ max CS CS % qeq CS CS CS ++ ++ qeq pop2 CS j ++ CS praise qeq qeq pop2 funkcia funkcia ++ % bitshift CS CS gcd CS ++ lroll CS u CS CS pop2 CS lensum m pop2 pop2";
+pub const SEJSELOVA2_DUP: &str = "CS CS lensum CS funkcia CS ++ ++ ++ m CS CS ++ gcd ++ max CS CS % qeq CS CS CS ++ ++ qeq pop2 CS CS ^^ CS praise qeq qeq pop2 funkcia funkcia ++ % bitshift CS CS gcd CS ++ lroll CS u CS CS pop2 CS lensum m pop2 pop2";
 #[test]
 fn test_dup1a() {
     test_dup(VZORAKOVA_DUP, FULL_RANGE);
@@ -203,8 +229,8 @@ fn test_dup1_trochu_jina() {
 #[test]
 fn test_dup2_s1() {
     test_dup(SEJSELOVA_DUP, i64::MIN..=0);
-    test_dup(SEJSELOVA_DUP, 3..=i64::MAX);
-    // test_dup(SEJSELOVA_DUP, FULL_RANGE); // TODO: support this
+    // test_dup(SEJSELOVA_DUP, 3..=i64::MAX);
+    // test_dup(SEJSELOVA_DUP, FULL_RANGE);
     // todo!()
 }
 
@@ -345,16 +371,28 @@ fn test_yoink_destructive() {
 }
 
 // #[test]
-// fn test_bitnot() {
-//     let p = "CS CS lensum CS funkcia CS ++ ++ ++ m CS CS ++ gcd ++ max CS CS % qeq CS CS CS ++ ++ qeq pop2 CS j ++ CS praise qeq qeq pop2 funkcia funkcia ++ % bitshift CS CS gcd CS ++ lroll CS u CS CS pop2 CS lensum m pop2 pop2 CS CS lensum CS funkcia CS ++ ++ ++ m CS CS ++ gcd ++ max CS CS % qeq CS CS CS ++ ++ qeq pop2 CS j ++ CS praise qeq qeq pop2 funkcia funkcia ++ % bitshift CS CS gcd CS ++ lroll CS u CS CS pop2 CS lensum m pop2 pop2 CS CS lensum ++ CS lensum ++ ++ ++ u CS CS lensum CS funkcia ++ u CS CS lensum CS funkcia ++ praise qeq pop2 pop2 funkcia ++ bitshift pop2 pop2 pop2 ++ CS CS lensum CS funkcia ++ CS CS % qeq CS CS lensum CS funkcia ++ u CS CS lensum CS funkcia ++ praise qeq qeq funkcia and pop2 pop2 CS funkcia CS CS lensum CS funkcia ++ CS ++ lroll brz pop2 CS CS lensum CS funkcia ++ praise qeq qeq rem bitshift rem pop2 CS pop j pop2 pop CS CS lensum CS funkcia ++ praise qeq pop2 pop2 funkcia ++ bitshift pop2 pop2 pop2 ++ CS CS lensum CS funkcia ++ CS CS % qeq pop2 CS CS lensum ++ CS lensum CS ++ ++ bitshift CS ++ ++ ++ pop j pop pop CS CS lensum ++ CS CS CS % qeq CS CS ++ lroll CS CS lensum CS funkcia ++ CS CS % qeq CS CS lensum CS funkcia u CS pop";
-//     let (g, [x]) = precompile(p, None, [FULL_RANGE]);
-//     for v in g.values.values() {
-//         println!("{:?}", v);
-//     }
-//     assert_pattern(&g, g.stack.stack[0], OptOptPattern::op1(OptOp::BinNot, x));
-//     assert_size(&g, 1..=1, 3..=3);
-//     assert_eq!(1, g.stack.stack.len());
-// }
+fn test_bitnot() {
+    let p = "CS CS lensum CS funkcia CS ++ ++ ++ m CS CS ++ gcd ++ max CS CS % qeq CS CS CS ++ ++ qeq pop2 CS j ++ CS praise qeq qeq pop2 funkcia funkcia ++ % bitshift CS CS gcd CS ++ lroll CS u CS CS pop2 CS lensum m pop2 pop2 CS CS lensum CS funkcia CS ++ ++ ++ m CS CS ++ gcd ++ max CS CS % qeq CS CS CS ++ ++ qeq pop2 CS j ++ CS praise qeq qeq pop2 funkcia funkcia ++ % bitshift CS CS gcd CS ++ lroll CS u CS CS pop2 CS lensum m pop2 pop2 CS CS lensum ++ CS lensum ++ ++ ++ u CS CS lensum CS funkcia ++ u CS CS lensum CS funkcia ++ praise qeq pop2 pop2 funkcia ++ bitshift pop2 pop2 pop2 ++ CS CS lensum CS funkcia ++ CS CS % qeq CS CS lensum CS funkcia ++ u CS CS lensum CS funkcia ++ praise qeq qeq funkcia and pop2 pop2 CS funkcia CS CS lensum CS funkcia ++ CS ++ lroll brz pop2 CS CS lensum CS funkcia ++ praise qeq qeq rem bitshift rem pop2 CS pop j pop2 pop CS CS lensum CS funkcia ++ praise qeq pop2 pop2 funkcia ++ bitshift pop2 pop2 pop2 ++ CS CS lensum CS funkcia ++ CS CS % qeq pop2 CS CS lensum ++ CS lensum CS ++ ++ bitshift CS ++ ++ ++ pop j pop pop CS CS lensum ++ CS CS CS % qeq CS CS ++ lroll CS CS lensum CS funkcia ++ CS CS % qeq CS CS lensum CS funkcia u CS pop";
+    let (g, [x]) = precompile(p, None, [FULL_RANGE]);
+    for v in g.values.values() {
+        println!("{:?}", v);
+    }
+    assert_pattern(&g, g.stack.stack[0], OptOptPattern::op1(OptOp::BinNot, x));
+    assert_size(&g, 1..=1, 3..=3);
+    assert_eq!(1, g.stack.stack.len());
+}
+
+// #[test]
+fn test_bitnot2() {
+    let p = "CS CS lensum CS funkcia CS ++ ++ ++ m CS CS ++ gcd ++ max CS CS % qeq CS CS CS ++ ++ qeq pop2 CS CS ^^ CS praise qeq qeq pop2 funkcia funkcia ++ % bitshift CS CS gcd CS ++ lroll CS u CS CS pop2 CS lensum m pop2 pop2 CS CS lensum CS funkcia CS ++ ++ ++ m CS CS ++ gcd ++ max CS CS % qeq CS CS CS ++ ++ qeq pop2 CS CS ^^ CS praise qeq qeq pop2 funkcia funkcia ++ % bitshift CS CS gcd CS ++ lroll CS u CS CS pop2 CS lensum m pop2 pop2 CS CS lensum ++ CS lensum ++ ++ ++ u CS CS lensum CS funkcia ++ u CS CS lensum CS funkcia ++ praise qeq pop2 pop2 funkcia ++ bitshift pop2 pop2 pop2 ++ CS CS lensum CS funkcia ++ CS CS % qeq CS CS lensum CS funkcia ++ u CS CS lensum CS funkcia ++ praise qeq qeq funkcia and pop2 pop2 CS funkcia CS CS lensum CS funkcia ++ CS ++ lroll brz pop2 CS CS lensum CS funkcia ++ praise qeq qeq rem bitshift rem pop2 CS pop j pop2 pop CS CS lensum CS funkcia ++ praise qeq pop2 pop2 funkcia ++ bitshift pop2 pop2 pop2 ++ CS CS lensum CS funkcia ++ CS CS % qeq pop2 CS CS lensum ++ CS lensum CS ++ ++ bitshift CS ++ ++ ++ pop j pop pop CS CS lensum ++ CS CS CS % qeq CS CS ++ lroll CS CS lensum CS funkcia ++ CS CS % qeq CS CS lensum CS funkcia u CS pop";
+    let (g, [x]) = precompile(p, None, [FULL_RANGE]);
+    for v in g.values.values() {
+        println!("{:?}", v);
+    }
+    assert_pattern(&g, g.stack.stack[0], OptOptPattern::op1(OptOp::BinNot, x));
+    assert_size(&g, 1..=1, 3..=3);
+    assert_eq!(1, g.stack.stack.len());
+}
 
 #[test]
 fn test_permute_abcd_dacb() {
@@ -428,14 +466,14 @@ fn test_min2() {
 }
 
 // #[test]
-// fn test_ismin() {
-//     let p = "CS CS lensum CS funkcia CS ++ ++ ++ m CS CS ++ gcd ++ max CS CS % qeq CS CS CS ++ ++ qeq pop2 CS j ++ CS praise qeq qeq pop2 funkcia funkcia ++ % bitshift CS CS gcd CS ++ lroll CS u CS CS pop2 CS lensum m pop2 pop2 CS CS lensum ++ CS lensum ++ ++ ++ u CS CS lensum CS funkcia ++ u CS CS lensum CS funkcia ++ praise qeq pop2 pop2 funkcia ++ bitshift pop2 pop2 pop2 ++ CS CS lensum CS funkcia ++ CS CS % qeq CS CS lensum CS funkcia ++ u CS CS lensum CS funkcia ++ CS bulkxor";
-//
-//     let (g, [a]) = precompile(p, None, [FULL_RANGE]);
-//     assert_pattern(&g, g.stack.stack[0], OptOptPattern::op2(OptOp::Select(Condition::Eq(a.into(), i64::MIN.into())), 0, 1));
-//     assert_size(&g, 1..=1, 4..=4);
-//     assert_eq!(g.stack.stack.len(), 1);
-// }
+fn test_ismin() {
+    let p = "CS CS lensum CS funkcia CS ++ ++ ++ m CS CS ++ gcd ++ max CS CS % qeq CS CS CS ++ ++ qeq pop2 CS CS ^^ CS praise qeq qeq pop2 funkcia funkcia ++ % bitshift CS CS gcd CS ++ lroll CS u CS CS pop2 CS lensum m pop2 pop2 CS CS lensum ++ CS lensum ++ ++ ++ u CS CS lensum CS funkcia ++ u CS CS lensum CS funkcia ++ praise qeq pop2 pop2 funkcia ++ bitshift pop2 pop2 pop2 ++ CS CS lensum CS funkcia ++ CS CS % qeq CS CS lensum CS funkcia ++ u CS CS lensum CS funkcia ++ CS bulkxor";
+
+    let (g, [a]) = precompile(p, None, [FULL_RANGE]);
+    assert_pattern(&g, g.stack.stack[0], OptOptPattern::op2(OptOp::Select(Condition::Eq(a.into(), i64::MIN.into())), 0, 1));
+    assert_size(&g, 1..=1, 4..=4);
+    assert_eq!(g.stack.stack.len(), 1);
+}
 
 const PI_TEST_VALUES: [i8; 42] = [
     3, 1, 4, 1, 5, 9, 2, 6, 5, 3, 5, 8, 9, 7, 9, 3, 2, 3, 8, 4, 6, 2, 6, 4, 3, 3, 8, 3, 2, 7, 9, 5,
@@ -609,3 +647,9 @@ fn test_aoc24_7_1() {
     assert_eq!(res.stack, [314001004]);
 }
 
+
+#[test]
+fn test_tmp() {
+    let config = crate::compiler::config::get_config();
+    println!("Cheat mode: {}", config.cheat_mode);
+}

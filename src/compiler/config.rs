@@ -29,6 +29,8 @@ pub struct JitConfig {
 
     pub shrinker_final_verbosity: u8,
 
+    pub cheat_mode: u8,
+
     pub info_dump_dir: Option<String>,
 }
 
@@ -108,6 +110,8 @@ fn create_config() -> JitConfig {
         yield_interval: parse_env("KSPLANGJIT_YIELD_INTERVAL", 300),
 
         shrinker_final_verbosity: parse_env("KSPLANGJIT_SHRINKER_FINAL_VERBOSITY", verbosity),
+
+        cheat_mode: parse_env("KSPLANGJIT_CHEAT", 1),
 
         info_dump_dir: std::env::var("KSPLANGJIT_DUMPDIR").ok().filter(|c| !c.is_empty())
     };

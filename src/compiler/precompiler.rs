@@ -4,7 +4,7 @@ use rustc_hash::{FxHashMap as HashMap};
 use num_integer::Integer;
 use smallvec::{SmallVec, smallvec};
 
-use crate::{compiler::{cfg::{GraphBuilder, StackState}, config::{JitConfig, get_config}, ops::{BlockId, InstrId, OpEffect, OptInstr, OptOp, ValueId}, opt_hoisting::{hoist_up, hoist_down}, osmibytecode::Condition, range_ops::{IRange, eval_combi, range_div, range_num_digits}, simplifier::{self, simplify_cond}, utils::{FULL_RANGE, abs_range, add_range, eval_combi_u64, intersect_range, range_2_i64, sort_tuple, sub_range}}, digit_sum::digit_sum, funkcia::funkcia, ops::Op, vm::{self, OperationError, QuadraticEquationResult, solve_quadratic_equation}};
+use crate::{compiler::{cfg::{GraphBuilder, StackState}, cheats::try_cheat, config::{JitConfig, get_config}, ops::{BlockId, InstrId, OpEffect, OptInstr, OptOp, ValueId}, opt_hoisting::{hoist_down, hoist_up}, osmibytecode::Condition, range_ops::{IRange, eval_combi, range_div, range_num_digits}, simplifier::{self, simplify_cond}, utils::{FULL_RANGE, abs_range, add_range, eval_combi_u64, intersect_range, range_2_i64, sort_tuple, sub_range}}, digit_sum::digit_sum, funkcia::funkcia, ops::Op, vm::{self, OperationError, QuadraticEquationResult, solve_quadratic_equation}};
 
 pub trait TraceProvider {
     // type TracePointer
@@ -513,6 +513,15 @@ impl<'a, TP: TraceProvider> Precompiler<'a, TP> {
     pub fn step(&mut self) -> PrecompileStepResult {
         use PrecompileStepResult::*;
         let op = self.ops[self.position];
+
+        if !self.reversed_direction && self.conf.cheat_mode > 0 &&
+            // all patterns start with CS CS
+            op == Op::DigitSum && self.ops.get(self.position + 1) == Some(&Op::DigitSum)
+        {
+            if let Some(res) = try_cheat(self) {
+                return res;
+            }
+        }
 
         match op {
             crate::ops::Op::Nop => Continue,

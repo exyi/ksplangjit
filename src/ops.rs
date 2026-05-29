@@ -15,12 +15,12 @@ pub enum Op {
     FF,
     Swap,
     KPi,
-    Increment,
+    Increment, // ++
     Universal,
-    Remainder,
-    Modulo,
-    TetrationNumIters,
-    TetrationItersNum,
+    Remainder, // rem
+    Modulo, // %
+    TetrationNumIters, // tetr
+    TetrationItersNum, // ^^
     Median,
     DigitSum,
     LenSum,
