@@ -116,13 +116,13 @@ fn verify_repro_core(r: ReproData) -> (GraphBuilder, OsmibytecodeBlock) {
     precompiler.interpret();
     let g = precompiler.g;
     // if is_trivial(&g) { return; }
-    println!("{g}");
+    // println!("{g}");
 
     let mut cfg_stack = r.input.clone();
     let cfg_res = cfg_interpreter::interpret_cfg(&g, &mut cfg_stack, true);
 
     let obc_block = OsmibytecodeBlock::from_cfg(&g);
-    println!("{obc_block}");
+    // println!("{obc_block}");
 
     let mut obc_stack = r.input.clone();
     let mut regs = RegFile::new();

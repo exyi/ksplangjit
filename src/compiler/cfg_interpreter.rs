@@ -212,7 +212,7 @@ pub fn interpret_cfg(
     }
 
     if let Some((error, failed_at)) = error {
-        if error_is_deopt {
+        if error_is_deopt && error != OperationError::Unreachable {
             deoptimized = Some(failed_at);
         } else {
             return Err(error);

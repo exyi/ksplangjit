@@ -7,6 +7,7 @@ use std::{collections::{BTreeMap, BTreeSet}};
 use crate::compiler::{
     cfg::{BasicBlock, GraphBuilder}, ops::{BeforeOrAfter, BlockId, InstrId, OpEffect, OptInstr, OptOp, ValueId}, osmibytecode::Condition, range_ops::IRange, utils::{Annotations, FULL_RANGE, RemoveAll, all_equal, union_range}
 };
+use crate::vm::OperationError;
 
 /// Hoists common instructions from following blocks of the specified predecessor block.
 /// Returns true if any hoisting was performed.
@@ -575,6 +576,10 @@ fn can_hoist_from_block(
     }
     if !matches!(instr.effect, OpEffect::None | OpEffect::MayFail) {
         return !prior_effect && !prior_checkpoint
+    }
+    if matches!(instr.op, OptOp::Assert(_, OperationError::Unreachable)) {
+        // always panics, "error_is_deopt" doesn't apply
+        return !prior_effect
     }
 
 
