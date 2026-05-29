@@ -978,3 +978,21 @@ fn fuzz_idk_some_edge_in_condition_simplification() {
     let ops = vec![ DigitSum, DigitSum, Praise, Remainder, Funkcia, LSwap, BranchIfZero, Increment, DigitSum, LSwap, TetrationItersNum, Call, GcdN, GcdN ];
     verify_repro_const(ops, vec![0], vec![-1958644724952736547]);
 }
+
+#[test]
+fn fuzz_idk_some_block_merging_issue1() {
+    let ops = vec![ DigitSum, DigitSum, Praise, LenSum, LenSum, DigitSum, Increment, Increment, Gcd2, LSwap, DigitSum, And, DigitSum, LSwap, DigitSum, Remainder, Qeq, LenSum, Max, DigitSum, Goto ];
+    verify_repro_const(ops, vec![15665135], vec![571683407704424704]);
+}
+
+#[test]
+fn fuzz_idk_some_block_merging_issue2() {
+    let ops = vec![ DigitSum, DigitSum, DigitSum, Increment, DigitSum, Increment, LSwap, DigitSum, Increment, Increment, Modulo, BranchIfZero, Pop, Call, Max, Pop, Roll, Pop, Pop, Pop ];
+    verify_repro_const(ops, vec![280407666706452], vec![-4483961236422983483, -4195730024071576123, -72056491208227643, -58142174876794881]);
+}
+
+#[test]
+fn fuzz_idk_some_block_merging_issue3() {
+    let ops = vec![ DigitSum, DigitSum, DigitSum, DigitSum, LSwap, DigitSum, Increment, Increment, Modulo, BranchIfZero, Pop, Call, Max, Max, Increment, Max ];
+    verify_repro_const(ops, vec![7], vec![-58257617809624721]);
+}
