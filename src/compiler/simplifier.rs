@@ -1075,6 +1075,7 @@ pub fn simplify_instr(cfg: &mut GraphBuilder, mut i: OptInstr) -> (OptInstr, Opt
             OptOp::Jump(cond, to) => i.op = OptOp::Jump(simplify_cond(cfg, cond, i.id), to),
             OptOp::Assert(cond, err) => i.op = OptOp::Assert(simplify_cond(cfg, cond, i.id), err),
             OptOp::DeoptAssert(cond) => i.op = OptOp::DeoptAssert(simplify_cond(cfg, cond, i.id)),
+            OptOp::KsplangOpsIncrement(cond) => i.op = OptOp::KsplangOpsIncrement(simplify_cond(cfg, cond, i.id)),
             _ => { }
         };
 
@@ -1502,6 +1503,17 @@ pub fn simplify_instr(cfg: &mut GraphBuilder, mut i: OptInstr) -> (OptInstr, Opt
                 }
             },
             OptOp::KsplangOpsIncrement(_) if i.inputs[0] == ValueId::C_ZERO => {
+                i.inputs.remove(0);
+                continue;
+            }
+
+            OptOp::KsplangOpsIncrement(Condition::True) if i.inputs[0].is_constant() => {
+                let c = cfg.get_constant_(i.inputs[0]);
+                let b = cfg.block_mut_(i.id.block_id());
+                b.ksplang_instr_count = (b.ksplang_instr_count as i64 + c).try_into().unwrap();
+                if i.inputs.len() == 1 {
+                    return (i.clone().with_op(OptOp::Nop, &[], OpEffect::None), None);
+                }
                 i.inputs.remove(0);
                 continue;
             }
