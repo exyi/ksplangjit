@@ -118,6 +118,10 @@ impl<'a, TP: TraceProvider> Precompiler<'a, TP> {
         }
     }
 
+    fn direction(&self) -> i64 {
+        if self.reversed_direction { -1 } else { 1 }
+    }
+
     fn next_position(&self) -> usize {
         if self.reversed_direction {
             self.position.wrapping_sub(1)
@@ -639,16 +643,33 @@ impl<'a, TP: TraceProvider> Precompiler<'a, TP> {
             crate::ops::Op::KPi => NevimJak,
             crate::ops::Op::Increment => {
                 let a = self.g.pop_stack();
+
+                // try to zoom though multiple increments
+                // it might speed up compilation, but most importantly avoids cascades of
+                // a + 1; a + 2; a + 3; a + 4; ... if the operation can overflow
+                let additional_increments = if !self.conf.error_as_deopt {
+                    0 // not supported, we loose track of where error happened
+                } else if self.reversed_direction {
+                    self.ops[..self.position].iter().rev().take_while(|&&x| x == Op::Increment).count()
+                } else {
+                    self.ops[self.position+1..].iter().take_while(|&&x| x == Op::Increment).count()
+                } as i64;
+
                 let out = if let Some(c) = self.g.get_constant(a) {
-                    if c == i64::MAX {
+                    let Some(added) = c.checked_add(1 + additional_increments) else {
+                        self.position = self.position.strict_add_signed((self.direction() * (i64::MAX - c)) as isize);
+                        self.g.current_block_mut().ksplang_instr_count += (i64::MAX - c) as u32;
                         self.g.push_assert(Condition::False, OperationError::IntegerOverflow, None);
                         return Continue;
-                    }
-                    self.g.store_constant(c + 1)
+                    };
+                    self.g.store_constant(added)
                 } else {
-                    self.instr_add(a, ValueId::C_ONE)
+                    let b = self.g.store_constant(1 + additional_increments);
+                    self.instr_add(a, b)
                 };
                 self.g.stack.push(out);
+                self.position = self.position.strict_add_signed((self.direction() * additional_increments) as isize);
+                self.g.current_block_mut().ksplang_instr_count += additional_increments as u32;
                 Continue
             }
             crate::ops::Op::Universal => {
