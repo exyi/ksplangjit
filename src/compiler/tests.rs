@@ -370,9 +370,12 @@ fn test_yoink_destructive() {
     assert_eq!(1, g.stack.stack.len());
 }
 
+const BITNOT1: &str = "CS CS lensum CS funkcia CS ++ ++ ++ m CS CS ++ gcd ++ max CS CS % qeq CS CS CS ++ ++ qeq pop2 CS j ++ CS praise qeq qeq pop2 funkcia funkcia ++ % bitshift CS CS gcd CS ++ lroll CS u CS CS pop2 CS lensum m pop2 pop2 CS CS lensum CS funkcia CS ++ ++ ++ m CS CS ++ gcd ++ max CS CS % qeq CS CS CS ++ ++ qeq pop2 CS j ++ CS praise qeq qeq pop2 funkcia funkcia ++ % bitshift CS CS gcd CS ++ lroll CS u CS CS pop2 CS lensum m pop2 pop2 CS CS lensum ++ CS lensum ++ ++ ++ u CS CS lensum CS funkcia ++ u CS CS lensum CS funkcia ++ praise qeq pop2 pop2 funkcia ++ bitshift pop2 pop2 pop2 ++ CS CS lensum CS funkcia ++ CS CS % qeq CS CS lensum CS funkcia ++ u CS CS lensum CS funkcia ++ praise qeq qeq funkcia and pop2 pop2 CS funkcia CS CS lensum CS funkcia ++ CS ++ lroll brz pop2 CS CS lensum CS funkcia ++ praise qeq qeq rem bitshift rem pop2 CS pop j pop2 pop CS CS lensum CS funkcia ++ praise qeq pop2 pop2 funkcia ++ bitshift pop2 pop2 pop2 ++ CS CS lensum CS funkcia ++ CS CS % qeq pop2 CS CS lensum ++ CS lensum CS ++ ++ bitshift CS ++ ++ ++ pop j pop pop CS CS lensum ++ CS CS CS % qeq CS CS ++ lroll CS CS lensum CS funkcia ++ CS CS % qeq CS CS lensum CS funkcia u CS pop";
+const BITNOT2: &str = "CS CS lensum CS funkcia CS ++ ++ ++ m CS CS ++ gcd ++ max CS CS % qeq CS CS CS ++ ++ qeq pop2 CS CS ^^ CS praise qeq qeq pop2 funkcia funkcia ++ % bitshift CS CS gcd CS ++ lroll CS u CS CS pop2 CS lensum m pop2 pop2 CS CS lensum CS funkcia CS ++ ++ ++ m CS CS ++ gcd ++ max CS CS % qeq CS CS CS ++ ++ qeq pop2 CS CS ^^ CS praise qeq qeq pop2 funkcia funkcia ++ % bitshift CS CS gcd CS ++ lroll CS u CS CS pop2 CS lensum m pop2 pop2 CS CS lensum ++ CS lensum ++ ++ ++ u CS CS lensum CS funkcia ++ u CS CS lensum CS funkcia ++ praise qeq pop2 pop2 funkcia ++ bitshift pop2 pop2 pop2 ++ CS CS lensum CS funkcia ++ CS CS % qeq CS CS lensum CS funkcia ++ u CS CS lensum CS funkcia ++ praise qeq qeq funkcia and pop2 pop2 CS funkcia CS CS lensum CS funkcia ++ CS ++ lroll brz pop2 CS CS lensum CS funkcia ++ praise qeq qeq rem bitshift rem pop2 CS pop j pop2 pop CS CS lensum CS funkcia ++ praise qeq pop2 pop2 funkcia ++ bitshift pop2 pop2 pop2 ++ CS CS lensum CS funkcia ++ CS CS % qeq pop2 CS CS lensum ++ CS lensum CS ++ ++ bitshift CS ++ ++ ++ pop j pop pop CS CS lensum ++ CS CS CS % qeq CS CS ++ lroll CS CS lensum CS funkcia ++ CS CS % qeq CS CS lensum CS funkcia u CS pop";
+
 // #[test]
-fn test_bitnot() {
-    let p = "CS CS lensum CS funkcia CS ++ ++ ++ m CS CS ++ gcd ++ max CS CS % qeq CS CS CS ++ ++ qeq pop2 CS j ++ CS praise qeq qeq pop2 funkcia funkcia ++ % bitshift CS CS gcd CS ++ lroll CS u CS CS pop2 CS lensum m pop2 pop2 CS CS lensum CS funkcia CS ++ ++ ++ m CS CS ++ gcd ++ max CS CS % qeq CS CS CS ++ ++ qeq pop2 CS j ++ CS praise qeq qeq pop2 funkcia funkcia ++ % bitshift CS CS gcd CS ++ lroll CS u CS CS pop2 CS lensum m pop2 pop2 CS CS lensum ++ CS lensum ++ ++ ++ u CS CS lensum CS funkcia ++ u CS CS lensum CS funkcia ++ praise qeq pop2 pop2 funkcia ++ bitshift pop2 pop2 pop2 ++ CS CS lensum CS funkcia ++ CS CS % qeq CS CS lensum CS funkcia ++ u CS CS lensum CS funkcia ++ praise qeq qeq funkcia and pop2 pop2 CS funkcia CS CS lensum CS funkcia ++ CS ++ lroll brz pop2 CS CS lensum CS funkcia ++ praise qeq qeq rem bitshift rem pop2 CS pop j pop2 pop CS CS lensum CS funkcia ++ praise qeq pop2 pop2 funkcia ++ bitshift pop2 pop2 pop2 ++ CS CS lensum CS funkcia ++ CS CS % qeq pop2 CS CS lensum ++ CS lensum CS ++ ++ bitshift CS ++ ++ ++ pop j pop pop CS CS lensum ++ CS CS CS % qeq CS CS ++ lroll CS CS lensum CS funkcia ++ CS CS % qeq CS CS lensum CS funkcia u CS pop";
+fn test_bitnot_compiles() {
+    let p = BITNOT1;
     let (g, [x]) = precompile(p, None, [FULL_RANGE]);
     for v in g.values.values() {
         println!("{:?}", v);
@@ -382,16 +385,14 @@ fn test_bitnot() {
     assert_eq!(1, g.stack.stack.len());
 }
 
-// #[test]
-fn test_bitnot2() {
-    let p = "CS CS lensum CS funkcia CS ++ ++ ++ m CS CS ++ gcd ++ max CS CS % qeq CS CS CS ++ ++ qeq pop2 CS CS ^^ CS praise qeq qeq pop2 funkcia funkcia ++ % bitshift CS CS gcd CS ++ lroll CS u CS CS pop2 CS lensum m pop2 pop2 CS CS lensum CS funkcia CS ++ ++ ++ m CS CS ++ gcd ++ max CS CS % qeq CS CS CS ++ ++ qeq pop2 CS CS ^^ CS praise qeq qeq pop2 funkcia funkcia ++ % bitshift CS CS gcd CS ++ lroll CS u CS CS pop2 CS lensum m pop2 pop2 CS CS lensum ++ CS lensum ++ ++ ++ u CS CS lensum CS funkcia ++ u CS CS lensum CS funkcia ++ praise qeq pop2 pop2 funkcia ++ bitshift pop2 pop2 pop2 ++ CS CS lensum CS funkcia ++ CS CS % qeq CS CS lensum CS funkcia ++ u CS CS lensum CS funkcia ++ praise qeq qeq funkcia and pop2 pop2 CS funkcia CS CS lensum CS funkcia ++ CS ++ lroll brz pop2 CS CS lensum CS funkcia ++ praise qeq qeq rem bitshift rem pop2 CS pop j pop2 pop CS CS lensum CS funkcia ++ praise qeq pop2 pop2 funkcia ++ bitshift pop2 pop2 pop2 ++ CS CS lensum CS funkcia ++ CS CS % qeq pop2 CS CS lensum ++ CS lensum CS ++ ++ bitshift CS ++ ++ ++ pop j pop pop CS CS lensum ++ CS CS CS % qeq CS CS ++ lroll CS CS lensum CS funkcia ++ CS CS % qeq CS CS lensum CS funkcia u CS pop";
-    let (g, [x]) = precompile(p, None, [FULL_RANGE]);
-    for v in g.values.values() {
-        println!("{:?}", v);
+#[test]
+fn test_bitnot_not_broken() {
+    for p in &[BITNOT1, BITNOT2] {
+        let prog = parse_program(p).unwrap();
+        for input in [i64::MIN, i64::MAX, 0, 2, 3, 4] {
+            test_utils::verify_repro(prog.clone(), vec![input, input, input, input]);
+        }
     }
-    assert_pattern(&g, g.stack.stack[0], OptOptPattern::op1(OptOp::BinNot, x));
-    assert_size(&g, 1..=1, 3..=3);
-    assert_eq!(1, g.stack.stack.len());
 }
 
 #[test]

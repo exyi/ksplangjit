@@ -538,7 +538,7 @@ impl<TVal: Clone + PartialEq + Eq + Display + Debug> OptOp<TVal> {
                 }
             }
             OptOp::ShiftR => None, // TODO
-            OptOp::BinNot => Some(0..=1), // TODO
+            OptOp::BinNot => None, // TODO
             OptOp::BoolNot => if *inputs[0].start() > 0 || *inputs[0].end() < 0 {
                 Some(0..=0)
             } else if *inputs[0].start() == 0 && *inputs[0].end() == 0 {
