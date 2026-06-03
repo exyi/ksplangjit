@@ -1,5 +1,5 @@
 use crate::compiler::{
-    cfg::GraphBuilder, ops::{BlockId, InstrId, OpEffect, OptInstr, OptOp, ValueId}, osmibytecode::Condition, pattern::OptOptPattern, simplifier::{simplify_cond, simplify_instr}, utils::FULL_RANGE
+    cfg::GraphBuilder, ops::{BlockId, InstrId, OpEffect, OptInstr, OptOp, ValueId}, osmibytecode::Condition, pattern::OptOptPattern, simplifier::{INSTR_SIMPL_DEFAULT, InstrSimplOpt, simplify_cond, simplify_instr}, utils::FULL_RANGE
 };
 use std::ops::RangeInclusive;
 const END_INSTR: InstrId = InstrId(BlockId(0), u32::MAX);
@@ -426,7 +426,7 @@ fn test_median_cursed_conversion1() {
     let n = g.store_constant(2);
 
     let instr = OptInstr::new(g.next_instr_id(), OptOp::MedianCursed, &[n, a, b], ValueId::from(i32::MAX));
-    let (simplified, _) = simplify_instr(&mut g, instr);
+    let (simplified, _) = simplify_instr(&mut g, instr, INSTR_SIMPL_DEFAULT);
 
     assert_eq!(simplified.op, OptOp::Median);
     assert_eq!(simplified.inputs.len(), 2);
@@ -443,7 +443,7 @@ fn test_median_cursed_conversion2() {
     assert_eq!(n_range, 2..=2);
 
     let instr = OptInstr::new(g.next_instr_id(), OptOp::MedianCursed, &[n, a, b, ValueId::C_ZERO], ValueId::from(i32::MAX));
-    let (simplified, _) = simplify_instr(&mut g, instr);
+    let (simplified, _) = simplify_instr(&mut g, instr, INSTR_SIMPL_DEFAULT);
 
     assert_eq!(simplified.op, OptOp::Median, "{simplified}\n{g}");
     assert_eq!(simplified.inputs.len(), 2);
@@ -464,7 +464,7 @@ fn test_mul_constant_chain_overflow_panics() {
     let (double, _) = g.push_instr(OptOp::Mul, &[ValueId::C_TWO, a], false, None, None);
 
     let instr = OptInstr::new(g.next_instr_id(), OptOp::Mul, &[ValueId::C_IMIN, double], ValueId::from(i32::MAX));
-    let _ = simplify_instr(&mut g, instr);
+    let _ = simplify_instr(&mut g, instr, INSTR_SIMPL_DEFAULT);
 }
 
 #[test]
@@ -473,7 +473,7 @@ fn test_add_sub_constant_overflow_panics() {
     let (sub, _) = g.push_instr(OptOp::Sub, &[ValueId::C_ONE, x], false, None, None);
 
     let instr = OptInstr::new(g.next_instr_id(), OptOp::Add, &[ValueId::C_IMAX, sub], ValueId::from(i32::MAX));
-    let _ = simplify_instr(&mut g, instr);
+    let _ = simplify_instr(&mut g, instr, INSTR_SIMPL_DEFAULT);
 }
 
 

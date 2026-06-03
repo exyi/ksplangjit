@@ -930,8 +930,21 @@ fn merge_constants(cfg: &mut GraphBuilder, i: &mut OptInstr, merge: impl FnMut(i
     false
 }
 
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct InstrSimplOpt {
+    pub allow_push_instr: bool
+}
+pub const INSTR_SIMPL_DEFAULT: InstrSimplOpt = InstrSimplOpt {
+    allow_push_instr: true
+};
+impl Default for InstrSimplOpt {
+    fn default() -> Self { INSTR_SIMPL_DEFAULT }
+}
+
 /// Returns (changed, new instruction)
-pub fn simplify_instr(cfg: &mut GraphBuilder, mut i: OptInstr) -> (OptInstr, Option<RangeInclusive<i64>>) {
+pub fn simplify_instr(cfg: &mut GraphBuilder, mut i: OptInstr, opt: InstrSimplOpt) -> (OptInstr, Option<RangeInclusive<i64>>) {
+
+    // println!("Simplifying {i}");
 
     macro_rules! result_val {
         ($val: expr) => { {
@@ -1735,12 +1748,19 @@ pub fn simplify_instr(cfg: &mut GraphBuilder, mut i: OptInstr) -> (OptInstr, Opt
             }
         }
 
-        if OptOp::Mul == i.op && i.inputs.len() <= 3 {
-            // (a + b) * c => a * c + b * c
-            // only valid if at all a, b have the same sign, otherwise we are introducing overfows
-            for (arg_ix, &val) in i.inputs.clone().iter().enumerate() {
-                let Some(def) = cfg.get_defined_at(val) else { continue };
-                if def.op == OptOp::Add {
+        if OptOp::Mul == i.op && i.inputs.len() <= 8 {
+            let definitions: Vec<Option<&OptInstr>> = i.inputs.iter().map(|v| cfg.get_defined_at(*v)).collect();
+            let mult_expansion: usize = definitions.iter().map(|def| match def.map(|d| &d.op) {
+                Some(OptOp::Add | OptOp::Mul | OptOp::Sub) => def.unwrap().inputs.len(),
+                _ => 1
+            }).product();
+            let additions = definitions.iter().filter(|def| def.is_some_and(|def| def.op == OptOp::Add)).count();
+            for (arg_ix, &def) in definitions.clone().iter().enumerate() {
+                let Some(def) = def else { continue };
+
+                // (a + b) * c => a * c + b * c
+                // only valid if at all a, b have the same sign, otherwise we are introducing overfows
+                if def.op == OptOp::Add && mult_expansion < 64 && (additions == 1 || mult_expansion <= 6) {
                     let def_rs = get_ranges(cfg, def.inputs.iter().copied());
                     let is_valid = def_rs.iter().cloned().map(range_signum).reduce(union_range).unwrap().count() <= 2 || {
                         let mut range_clone = ranges.clone();
@@ -1750,7 +1770,7 @@ pub fn simplify_instr(cfg: &mut GraphBuilder, mut i: OptInstr) -> (OptInstr, Opt
                         })
                     };
                     // println!("DBG Mul OPT: {} is_valid={} add_def={}", i, is_valid, def);
-                    if is_valid {
+                    if is_valid && opt.allow_push_instr {
                         let new_args = def.inputs.clone().iter().map(|v| {
                             let mut in_clone = i.inputs.clone();
                             in_clone[arg_ix] = *v;

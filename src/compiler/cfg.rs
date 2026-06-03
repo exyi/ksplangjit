@@ -268,6 +268,9 @@ pub struct GraphBuilder {
     pub constant_lookup: Map<i64, ValueId>,
     pub value_index: HashMap<(OptOp<ValueId>, SmallVec<[ValueId; 4]>), Vec<(ValueId, InstrId)>>, // value numbering - common subexpression elimination
     pub assumed_program_position: Option<usize>,
+    pub instr_simplification_stack_debug: Vec<OptInstr>,
+    pub instr_simplification_depth: usize,
+    pub push_instr_called: usize,
     pub conf: &'static JitConfig
 }
 
@@ -284,6 +287,9 @@ impl GraphBuilder {
             constant_lookup: Default::default(),
             value_index: HashMap::default(),
             assumed_program_position: None,
+            instr_simplification_stack_debug: vec![],
+            instr_simplification_depth: 0,
+            push_instr_called: 0,
             conf: get_config()
         }
     }
@@ -514,12 +520,18 @@ impl GraphBuilder {
             for (val, instr) in vals {
                 if instr.block_id() == at.block_id() {
                     if instr.instr_ix() < at.instr_ix() {
-                        return Some(*val);
+                        let val = self.fix_replaced_value(*val);
+                        if val.is_constant() || self.values.contains_key(&val) {
+                            return Some(val);
+                        }
                     }
                 } else if instr.block_id().is_first_block()
                     || self.current_block_ref().predecessors.contains(&instr.block_id())
                 {
-                    return Some(*val);
+                    let val = self.fix_replaced_value(*val);
+                    if val.is_constant() || self.values.contains_key(&val) {
+                        return Some(val);
+                    }
                 }
             }
         }
@@ -764,7 +776,9 @@ impl GraphBuilder {
         };
         let range = intersect_range(&pure_range, &cond_range);
         if range.is_empty() || cond == Condition::False {
-            println!("WARNING: condition {cond} and range got too simplified: {range:?} {current_range:?} {cond_range:?}"); // TODO: error?
+            if self.conf.should_log(1) {
+                println!("WARNING: condition {cond} and range got too simplified: {range:?} {current_range:?} {cond_range:?}"); // TODO: error?
+            }
             return
         }
         let cond2 = if replace_condition { Condition::True }
@@ -791,6 +805,7 @@ impl GraphBuilder {
     }
 
     pub fn push_instr(&mut self, op: OptOp<ValueId>, args: &[ValueId], value_numbering: bool, out_range: Option<RangeInclusive<i64>>, effect: Option<OpEffect>) -> (ValueId, Option<&mut OptInstr>) {
+        self.push_instr_called += 1;
         if self.current_block_ref().is_terminated {
             return (ValueId(0), None);
         }
@@ -801,6 +816,11 @@ impl GraphBuilder {
             None => op.worst_case_effect()
         };
         let value_numbering = value_numbering && effect2.allows_value_numbering();
+        if value_numbering {
+            if let Some(found) = self.value_numbering_try_lookup(op.clone(), &args, self.next_instr_id()) {
+                return (found, None)
+            }
+        }
 
         let instr = OptInstr {
             id: InstrId(self.current_block, u32::MAX),
@@ -813,14 +833,37 @@ impl GraphBuilder {
             annot: Annotations::default()
         };
         if self.conf.should_log(30) {
-            println!("Maybe pushing {instr} (vn={value_numbering}, {out_range:?}, {effect:?})")
+            println!("Maybe pushing {} {instr} (vn={value_numbering}, {out_range:?}, {effect:?})\nstack: {:?}", self.next_instr_id(), self.instr_simplification_stack_debug)
         }
         instr.validate();
         for v in instr.iter_inputs() {
             self.validate_val(v, instr.id);
         }
 
-        let (mut instr, simplifier_range) = simplifier::simplify_instr(self, instr);
+        let push_instr_call_count = self.push_instr_called;
+        #[cfg(debug_assertions)] {
+            // help with debugging stack overflow
+            self.instr_simplification_stack_debug.push(instr.clone());
+            // if self.instr_simplification_stack_debug.len() > 30 {
+            //     for (ix, instr) in self.instr_simplification_stack_debug.iter().enumerate() {
+            //         println!("STACK {ix:>5} {instr}");
+            //     }
+            //     panic!("Looks like we have infinite push_instr from simplifier situation.\ninstr: {instr}\n\nCFG: {self}")
+            // }
+        }
+        self.instr_simplification_depth += 1;
+        let (mut instr, simplifier_range) = simplifier::simplify_instr(self, instr, simplifier::InstrSimplOpt {
+            allow_push_instr: self.instr_simplification_depth < 20,
+            ..Default::default()
+        });
+        self.instr_simplification_depth -= 1;
+        #[cfg(debug_assertions)] {
+            self.instr_simplification_stack_debug.pop();
+        }
+
+        let value_numbering_store_original_op =
+            value_numbering &&
+            push_instr_call_count + 4 <= self.push_instr_called; // it was an expensive simplification call
         if self.current_block_ref().is_terminated {
             return (ValueId(0), None);
         }
@@ -918,6 +961,9 @@ impl GraphBuilder {
         }
 
         if value_numbering {
+            if value_numbering_store_original_op {
+                self.value_numbering_store(op, args, out_val, instr.id);
+            }
             self.value_numbering_store(instr.op.clone(), &instr.inputs, out_val, instr.id);
         }
 

@@ -960,14 +960,14 @@ fn fuzz_somehow_runs_into_unreachable() {
     verify_repro_const(ops, vec![-534704550355, 0], vec![-7384914558567055361, -12802, -2306135479306810111]);
 }
 
-// #[test] TODO: 
-fn fuzz_too_slow() {
+#[test] // TODO: 
+fn fuzz_too_much_mul_add_expansion_again() {
     let ops = vec![ DigitSum, DigitSum, DigitSum, DigitSum, Swap, Swap, Modulo, DigitSum, Increment, DigitSum, DigitSum, LenSum, Universal, DigitSum, Increment, Increment, DigitSum, DigitSum, Increment, DigitSum, DigitSum, LenSum, Universal, DigitSum, Increment, DigitSum, DigitSum, Increment, LenSum, DigitSum, DigitSum, LenSum, Universal, DigitSum, Increment, Increment, DigitSum, LenSum, DigitSum, LenSum, Universal, DigitSum, DigitSum, LenSum, DigitSum, LenSum, DigitSum, LenSum, Universal, DigitSum, Increment, Increment, DigitSum, LenSum, DigitSum, LenSum, Universal, DigitSum, Increment, DigitSum, Increment, LenSum, DigitSum, LenSum, Universal, DigitSum, Increment, Increment, DigitSum, LenSum, DigitSum, LenSum, Call ];
     verify_repro_const(ops, vec![4453888], vec![-499917969032220825]);
 }
 
-// #[test] TODO: 
-fn fuzz_fucking_extremely_slow() {
+#[test] // TODO: 
+fn fuzz_nested_calling_add_mul_expansion_which_doesnt_produce_too_much_code_as_VN_handles_it() {
     let ops = vec![ DigitSum, DigitSum, Increment, DigitSum, DigitSum, LenSum, DigitSum, Increment, DigitSum, DigitSum, BulkXor, BulkXor, TetrationNumIters, DigitSum, Increment, Increment, Increment, DigitSum, DigitSum, Remainder, Universal, Increment, DigitSum, Increment, DigitSum, DigitSum, Remainder, Universal, Increment, DigitSum, Increment, Increment, DigitSum, Increment, DigitSum, DigitSum, LenSum, Universal, Increment, DigitSum, Increment, DigitSum, DigitSum, LenSum, LenSum, Increment, Modulo, Increment, Increment, Increment, DigitSum, LenSum, Universal, DigitSum, DigitSum, Increment, Increment, Increment, Increment, Increment, Increment, DigitSum, DigitSum, LenSum, Goto, Jump, Qeq, Universal, Pop, Max ];
     verify_repro(ops, vec![9144347934470956800, 2443202762612139874, -1736155355194360129, 0]);
 }
@@ -995,4 +995,10 @@ fn fuzz_idk_some_block_merging_issue2() {
 fn fuzz_idk_some_block_merging_issue3() {
     let ops = vec![ DigitSum, DigitSum, DigitSum, DigitSum, LSwap, DigitSum, Increment, Increment, Modulo, BranchIfZero, Pop, Call, Max, Max, Increment, Max ];
     verify_repro_const(ops, vec![7], vec![-58257617809624721]);
+}
+
+#[test]
+fn fuzz_value_numbering_contains_stale_value_if_we_store_unsimplified_instructions() {
+    let ops = vec![ DigitSum, LSwap, DigitSum, DigitSum, LSwap, Increment, DigitSum, LenSum, Universal, DigitSum, DigitSum, Increment, DigitSum, DigitSum, LenSum, Universal, DigitSum, Increment, DigitSum, DigitSum, LenSum, Universal, DigitSum, Increment, LenSum, DigitSum, Remainder, Goto ];
+    verify_repro_const(ops, vec![0], vec![-1787648537796739253]);
 }
