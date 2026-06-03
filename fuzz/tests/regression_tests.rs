@@ -1002,3 +1002,9 @@ fn fuzz_value_numbering_contains_stale_value_if_we_store_unsimplified_instructio
     let ops = vec![ DigitSum, LSwap, DigitSum, DigitSum, LSwap, Increment, DigitSum, LenSum, Universal, DigitSum, DigitSum, Increment, DigitSum, DigitSum, LenSum, Universal, DigitSum, Increment, DigitSum, DigitSum, LenSum, Universal, DigitSum, Increment, LenSum, DigitSum, Remainder, Goto ];
     verify_repro_const(ops, vec![0], vec![-1787648537796739253]);
 }
+
+#[test]
+fn fuzz_cheat_constant_doesnt_pop_stack() {
+    let ops = vec![ Max, Max, Pop, DigitSum, DigitSum, LenSum, DigitSum, Funkcia ];
+    verify_repro_const(ops, vec![0], vec![-1801439850948198400, 3169365352513536000]);
+}
