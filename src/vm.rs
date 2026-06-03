@@ -1799,7 +1799,7 @@ impl OptimizingVM {
                 return (st.swap_tracer(optimizer).1, result);
             }
             if st.conf.should_log(2) {
-                println!("Collected trace {start_ip} {}..{} {}: {} IPs, {} values, {} branches", st.ops[start_ip], st.ip, st.ops[st.ip], st.tracer.ips.len(), st.tracer.values.len(), st.tracer.ip_lookup.len());
+                println!("Collected trace {start_ip} {}..{} {:?}: {} IPs, {} values, {} branches", st.ops[start_ip], st.ip, st.ops.get(st.ip), st.tracer.ips.len(), st.tracer.values.len(), st.tracer.ip_lookup.len());
             }
             if st.tracer.ips.len() < 100 && st.tracer.ips.len() < self.conf.trace_limit as usize {
                 println!("ehh tracing interrupted only after {} at {}", st.tracer.ips.len(), st.ip);
