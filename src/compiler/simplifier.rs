@@ -1,10 +1,10 @@
 use std::{cmp, collections::BTreeSet, ops::RangeInclusive, sync::LazyLock};
 
 use arrayvec::ArrayVec;
-use num_integer::Integer;
+use num_integer::{Integer, Roots};
 use smallvec::{SmallVec, ToSmallVec, smallvec};
 
-use crate::{compiler::{analyzer::cond_implies, cfg::GraphBuilder, ops::{InstrId, OpEffect, OptInstr, OptOp, ValueId}, osmibytecode::Condition, pattern::OptOptPattern, range_ops::{IRange, mod_split_ranges, range_signum}, utils::{FULL_RANGE, abs_range, intersect_range, range_is_signless, union_range}}, digit_sum::digit_sum_u64, vm::{self, OperationError}};
+use crate::{compiler::{analyzer::cond_implies, cfg::GraphBuilder, ops::{InstrId, OpEffect, OptInstr, OptOp, ValueId}, osmibytecode::Condition, pattern::OptOptPattern, range_ops::{IRange, mod_split_ranges, range_pow_const, range_signum}, utils::{FULL_RANGE, abs_range, all_equal, intersect_range, range_is_signless, union_range}}, digit_sum::digit_sum_u64, vm::{self, OperationError}};
 
 use super::pattern::{OptOptPattern as P};
 
@@ -350,6 +350,24 @@ fn simplify_cond_core(cfg: &mut GraphBuilder, condition: &Condition<ValueId>, at
                             Condition::Gt(_a, _b) => return Condition::Gt(cfg.store_constant(ac_ceil), b2),
                             Condition::Geq(_a, _b) => return Condition::Geq(cfg.store_constant(ac_floor), b2),
                             _ => unreachable!()
+                        }
+                    }
+
+                    if matches!(def.op, OptOp::Mul) && all_equal(def.inputs.iter()) { // pow
+                        let base = def.inputs[0];
+                        let exp = def.inputs.len() as u32;
+                        let root = if exp == 2 { ac.isqrt() } else { (ac as f64).powi(exp as i32) as i64 };
+                        let lower = root.pow(exp);
+                        let upper = (root + 1).checked_pow(exp);
+                        match &condition {
+                            Condition::Eq(_, _) if lower == ac =>
+                                return Condition::Eq(cfg.store_constant(lower), base),
+                            Condition::Neq(_, _) if lower == ac =>
+                                return Condition::Neq(cfg.store_constant(lower), base),
+                            Condition::Eq(_, _) => return Condition::False,
+                            Condition::Neq(_, _) => return Condition::True,
+                            //  TODO: comparisons, but it's tricky because power of two is abs
+                            _ => {}
                         }
                     }
                     if let OptOp::Select(select_cond) = &def.op {
@@ -1748,6 +1766,23 @@ pub fn simplify_instr(cfg: &mut GraphBuilder, mut i: OptInstr, opt: InstrSimplOp
             }
         }
 
+        if OptOp::Mul == i.op && all_equal(i.inputs.iter()) {
+            // pow
+            let r = &ranges[0];
+            if *r.start() >= -1 && *r.end() <= 1 { // -1 ..= 1
+                if i.inputs.len().is_odd() || *r.start() >= 0 {
+                    return result_val!(i.inputs[0]);
+                } else {
+                    i.op = OptOp::AbsSub;
+                    i.inputs = smallvec![ValueId::C_ZERO, i.inputs[0]];
+                    continue;
+                }
+            }
+
+            let (_assumed_in_range, r) = range_pow_const(r.clone(), i.inputs.len() as u32);
+            out_range = Some(r);
+        }
+
         if OptOp::Mul == i.op && i.inputs.len() <= 8 {
             let definitions: Vec<Option<&OptInstr>> = i.inputs.iter().map(|v| cfg.get_defined_at(*v)).collect();
             let mult_expansion: usize = definitions.iter().map(|def| match def.map(|d| &d.op) {
@@ -1780,6 +1815,14 @@ pub fn simplify_instr(cfg: &mut GraphBuilder, mut i: OptInstr, opt: InstrSimplOp
 
                         i.inputs = new_args;
                         i.op = OptOp::Add;
+                        continue 'main;
+                    }
+                }
+
+                if let OptOp::Select(condition) = &def.op && i.inputs.len() == 2 {
+                    if matches!(def.inputs[..], [ValueId::C_ONE, ValueId::C_ZERO]) {
+                        i.op = OptOp::Select(condition.clone());
+                        i.inputs = smallvec![i.inputs[1 - arg_ix], ValueId::C_ZERO];
                         continue 'main;
                     }
                 }

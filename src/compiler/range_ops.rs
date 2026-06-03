@@ -4,7 +4,7 @@ use arrayvec::ArrayVec;
 use num_integer::Integer;
 use num_traits::{CheckedAdd, CheckedMul, CheckedSub};
 
-use crate::{compiler::utils::{FULL_RANGE, abs_range, range_2_i64, u64neg, union_range}, vm};
+use crate::{compiler::utils::{FULL_RANGE, abs_range, intersect_range, range_2_i64, u64neg, union_range}, vm};
 
 pub type IRange = RangeInclusive<i64>;
 pub type URange = RangeInclusive<u64>;
@@ -231,6 +231,45 @@ pub fn range_div(a: &IRange, b: &IRange) -> RangeInclusive<i64> {
         cmp::min(a1.saturating_neg(), a0)
     };
     min..=max
+}
+
+// >>> def pow(a, m):
+// ...     res = 1
+// ...     for _ in range(m): res *= a
+// ...     return res
+// ... def find_mul(m, a, b, limit):
+// ...     if a == b: return a
+// ...     print(a, b)
+// ...     mid = (a+b) // 2
+// ...     if pow(mid, m) > limit:
+// ...         return find_mul(m, a, mid, limit)
+// ...     else:
+// ...         return find_mul(m, mid + 1, b, limit)
+// >>> ', '.join([ f"-{find_mul(m, 0, 2**63, 2**63-1)-1}..={find_mul(m, 0, 2**63, 2**63-1)-1}" for m in range(2, 64) ])
+const RANGE_POW_LIMIT: [IRange; 62] = [ -3037000499..=3037000499, -2097152..=2097151, -55108..=55108, -6208..=6208, -1448..=1448, -512..=511, -234..=234, -128..=127, -78..=78, -52..=52, -38..=38, -28..=28, -22..=22, -18..=18, -15..=15, -13..=13, -11..=11, -9..=9, -8..=8, -8..=7, -7..=7, -6..=6, -6..=6, -5..=5, -5..=5, -5..=5, -4..=4, -4..=4, -4..=4, -4..=4, -3..=3, -3..=3, -3..=3, -3..=3, -3..=3, -3..=3, -3..=3, -3..=3, -2..=2, -2..=2, -2..=2, -2..=2, -2..=2, -2..=2, -2..=2, -2..=2, -2..=2, -2..=2, -2..=2, -2..=2, -2..=2, -2..=2, -2..=2, -2..=2, -2..=2, -2..=2, -2..=2, -2..=2, -2..=2, -2..=2, -2..=2, -2..=1 ];
+pub fn range_pow_const(a: IRange, exp: u32) -> (IRange, IRange) {
+    if exp == 0 { return (FULL_RANGE, 1..=1) }
+    if exp == 1 { return (a.clone(), a.clone()) }
+
+    let limit = RANGE_POW_LIMIT.get(exp as usize - 2).unwrap_or(&(-1..=1));
+    debug_assert!(limit.start().checked_pow(exp).is_some());
+    debug_assert!((limit.start() - 1).checked_pow(exp).is_none());
+    debug_assert!(limit.end().checked_pow(exp).is_some());
+    debug_assert!((limit.end() + 1).checked_pow(exp).is_none());
+
+    let a = intersect_range(a, limit);
+    let result = if exp.is_even() {
+        if *a.start() >= 0 {
+            a.start().pow(exp)..=a.end().pow(exp)
+        } else if *a.end() <= 0 {
+            a.end().pow(exp)..=a.start().pow(exp)
+        } else {
+            0..=cmp::max(a.start().abs(), a.end().abs()).pow(exp)
+        }
+    } else {
+        a.start().pow(exp)..=a.end().pow(exp)
+    };
+    return (a, result)
 }
 
 // Returns (bits always set, bits may be set)
@@ -632,3 +671,21 @@ fn test_mod_split_range() {
     assert_eq!(mod_split_ranges(-32..=-32, 32, false).as_slice(), [(-32..=-32, 0..=0)]);
     assert_eq!(mod_split_ranges(-33..=33, 32, false).as_slice(), [(-33..=-32, -1..=0), (-31..=31, -31..=31), (32..=33, 0..=1)]);
 }
+
+#[test]
+fn test_pow_range() {
+    assert_eq!(0..=9, range_pow_const(-3..=3, 2).1);
+    assert_eq!(0..=9, range_pow_const(0..=3, 2).1);
+    assert_eq!(0..=9, range_pow_const(-3..=0, 2).1);
+    assert_eq!(4..=9, range_pow_const(2..=3, 2).1);
+    assert_eq!(4..=9, range_pow_const(-3..=-2, 2).1);
+    assert_eq!(-27..=27, range_pow_const(-3..=3, 3).1);
+}
+
+#[test]
+fn test_pow_range_inner_check() {
+    for exp in 0..100 {
+        range_pow_const(FULL_RANGE, exp);
+    }
+}
+

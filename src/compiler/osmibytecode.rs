@@ -409,6 +409,22 @@ impl<TReg> Condition<TReg> {
         }
     }
 
+    pub fn is_eq_neq(&self) -> bool {
+        matches!(self, Condition::Eq(_, _) | Condition::EqConst(_, _) | Condition::Neq(_, _) | Condition::NeqConst(_, _))
+    }
+
+    pub fn is_cmp_eq(&self) -> bool {
+        matches!(self, Condition::Leq(_, _) | Condition::LeqConst(_, _) | Condition::Geq(_, _) | Condition::GeqConst(_, _))
+    }
+
+    pub fn is_cmp_strict(&self) -> bool {
+        matches!(self, Condition::Gt(_, _) | Condition::GtConst(_, _) | Condition::Lt(_, _) | Condition::LtConst(_, _))
+    }
+
+    pub fn is_divisibility(&self) -> bool {
+        matches!(self, Condition::Divides(_, _) | Condition::DividesConst(_, _) | Condition::NotDivides(_, _) | Condition::NotDividesConst(_, _))
+    }
+
     pub fn eval(&self, args: &[i64]) -> bool {
         match self {
             Condition::Eq(_, _) => args[0] == args[1],
