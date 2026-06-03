@@ -1,3 +1,5 @@
+use std::cmp;
+
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 
 use smallvec::SmallVec;
@@ -5,16 +7,42 @@ use smallvec::SmallVec;
 use crate::compiler::{cfg::{BasicBlock, GraphBuilder}, ops::{BlockId, InstrId, ValueId}, osmibytecode::Condition};
 
 /// Simplify b assuming a is true
-pub fn cond_implies(_cfg: &GraphBuilder, a: &Condition<ValueId>, b: &Condition<ValueId>, _at: InstrId) -> Option<Condition<ValueId>> {
+pub fn cond_implies(_cfg: &GraphBuilder, assume: &Condition<ValueId>, b: &Condition<ValueId>, _at: InstrId) -> Option<Condition<ValueId>> {
+    use Condition::*;
     // very naive implementation for now
-    if a == &Condition::False || b == &Condition::True { return Some(Condition::True) }
-    if a == &Condition::True || b == &Condition::False { return Some(b.clone()) }
-    if a == b {
+    if assume == &Condition::False || b == &Condition::True { return Some(Condition::True) }
+    if assume == &Condition::True || b == &Condition::False { return Some(b.clone()) }
+    if assume == b {
         return Some(Condition::True);
     }
     let b_neg = b.clone().neg();
-    if a == &b_neg {
+    if assume == &b_neg {
         return Some(Condition::False);
+    }
+
+    match (assume, b) {
+        (Eq(a2, a1),   Eq(b1, b2) | Eq(b2, b1))
+            if a1 == b1 && a1.is_computed() => {
+            return Some(Eq(*a2, *cmp::min(b1, b2)))
+        }
+        (Lt(a1, a2) | Gt(a2, a1) | NotDivides(a1, a2),   Neq(b1, b2) | Neq(b1, b2))
+            if a1 == b1 && a2 == b2 => {
+            return Some(Condition::True)
+        }
+        (Lt(a1, a2) | Gt(a2, a1) | NotDivides(a1, a2),   Eq(b1, b2) | Eq(b1, b2))
+            if a1 == b1 && a2 == b2 => {
+            return Some(Condition::False)
+        }
+        (Eq(a1, a2) | Eq(a2, a1),   Neq(b1, b2) | Lt(b1, b2) | Gt(b1, b2) | NotDivides(b1, b2))
+            if a1 == b1 && a2 == b2 => {
+            return Some(Condition::False)
+        }
+        (Eq(a1, a2) | Eq(a2, a1),   Leq(b1, b2) | Geq(b1, b2) | Divides(b1, b2))
+            if a1 == b1 && a2 == b2 => {
+            return Some(Condition::True)
+        }
+
+        _ => {}
     }
 
     None
