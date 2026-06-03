@@ -4,7 +4,7 @@ use arrayvec::ArrayVec;
 use num_integer::{Integer, Roots};
 use smallvec::{SmallVec, ToSmallVec, smallvec};
 
-use crate::{compiler::{analyzer::cond_implies, cfg::GraphBuilder, ops::{InstrId, OpEffect, OptInstr, OptOp, ValueId}, osmibytecode::Condition, pattern::OptOptPattern, range_ops::{IRange, mod_split_ranges, range_pow_const, range_signum}, utils::{FULL_RANGE, abs_range, all_equal, intersect_range, range_is_signless, union_range}}, digit_sum::digit_sum_u64, vm::{self, OperationError}};
+use crate::{compiler::{analyzer::cond_implies, cfg::GraphBuilder, ops::{InstrId, OpEffect, OptInstr, OptOp, ValueId}, osmibytecode::Condition, pattern::OptOptPattern, range_ops::{IRange, mod_split_ranges, range_pow_const, range_signum}, utils::{FULL_RANGE, abs_range, all_equal, intersect_range, range_is_signless, union_range}}, digit_sum::{self, evaluate_constant_propagation_feasibility}, vm::{self, OperationError}};
 
 use super::pattern::{OptOptPattern as P};
 
@@ -242,7 +242,38 @@ fn simplify_cond_core(cfg: &mut GraphBuilder, condition: &Condition<ValueId>, at
                             Condition::Leq(_, _) => Condition::True, // 0 <= CS(b)
                             Condition::Gt(_, _) => Condition::False, // 0 > CS(b)
                             Condition::Geq(_, _) => Condition::Eq(a, b2), // 0 >= CS(b)
-                            x => return x
+                            x => unreachable!()
+                        }
+                    }
+
+                    if matches!(def.op, OptOp::DigitSum) && condition.is_eq_neq() {
+                        let b2 = def.inputs[0];
+                        let range = cfg.val_range(b2);
+                        if ac == 9 && (*range.start() >= 1 && *range.end() < 99 || *range.start() > -99 && *range.end() <= -1) {
+                            // special case - digit_sum == 9 on numbers bellow 99 is equivalent to Divides
+                            return Condition::Divides(b2, ValueId::C_NINE);
+                        }
+
+                        if let Some(xs) = evaluate_constant_propagation_feasibility(range.clone(), ac, /* max_output */ 4) {
+                            let mut possible_condition = vec![];
+                            for (i, &x) in xs.iter().enumerate() {
+                                let cond2 = Condition::Eq(cfg.store_constant(x), b2);
+                                if possible_condition.is_empty() && i + 1 == xs.len() {
+                                    return cond2
+                                }
+                                match simplify_cond(cfg, cond2, at) {
+                                    Condition::True => return Condition::True.neg_if(condition.is_neq()),
+                                    Condition::False => {},
+                                    cond2 => possible_condition.push(cond2)
+                                }
+                            }
+                            if possible_condition.len() == 0 {
+                                return Condition::False.neg_if(condition.is_neq())
+                            }
+                            if all_equal(possible_condition.iter()) {
+                                return possible_condition[0].clone()
+                            }
+                            return condition
                         }
                     }
 
@@ -1365,6 +1396,23 @@ pub fn simplify_instr(cfg: &mut GraphBuilder, mut i: OptInstr, opt: InstrSimplOp
                         return result_const!(1);
                     }
                 }
+
+                if let Some(def_b) = cfg.get_defined_at(b) {
+                    if OptOp::DigitSum == def_b.op && a == def_b.inputs[0] {
+                        // GCD(DigitSum(a), a)
+                        // no optimization, but we can significantly limit range
+                        // in any case, we limit to b range, because 0 is correlated
+                        // if range of a is in [0..190], we know the output can only be [1, 2, 3, 4, 5, 6, 7, 8, 9, 12]
+                        //                  in [0..47], it excludes 12
+                        if *ranges[0].start() >= -47 && *ranges[0].end() <= 47 {
+                            out_range = Some(intersect_range(0..=9, &ranges[1]));
+                        } else if *ranges[0].start() >= 190 && *ranges[0].end() <= 190 {
+                            out_range = Some(intersect_range(0..=12, &ranges[1]))
+                        } else {
+                            out_range = Some(ranges[1].clone());
+                        }
+                    }
+                }
             }
 
             OptOp::Median if i.inputs.len() == 2 && i.inputs[0].is_constant() => {
@@ -1610,7 +1658,7 @@ pub fn simplify_instr(cfg: &mut GraphBuilder, mut i: OptInstr, opt: InstrSimplOp
                 let offset = abs_range(&ranges[0]).start() / 10 * 10;
                 assert_eq!(ranges[0].start().signum(), ranges[0].end().signum());
                 let x = i.inputs[0];
-                let cs_offset = digit_sum_u64(offset);
+                let cs_offset = digit_sum::digit_sum_u64(offset);
                 let c = cs_offset.strict_sub_unsigned(offset);
                 let c = cfg.store_constant(c);
                 i.inputs = smallvec![c, x];

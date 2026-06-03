@@ -412,6 +412,9 @@ impl<TReg> Condition<TReg> {
     pub fn is_eq_neq(&self) -> bool {
         matches!(self, Condition::Eq(_, _) | Condition::EqConst(_, _) | Condition::Neq(_, _) | Condition::NeqConst(_, _))
     }
+    pub fn is_neq(&self) -> bool {
+        matches!(self, Condition::Neq(_, _) | Condition::NeqConst(_, _))
+    }
 
     pub fn is_cmp_eq(&self) -> bool {
         matches!(self, Condition::Leq(_, _) | Condition::LeqConst(_, _) | Condition::Geq(_, _) | Condition::GeqConst(_, _))
