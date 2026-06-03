@@ -1008,3 +1008,15 @@ fn fuzz_cheat_constant_doesnt_pop_stack() {
     let ops = vec![ Max, Max, Pop, DigitSum, DigitSum, LenSum, DigitSum, Funkcia ];
     verify_repro_const(ops, vec![0], vec![-1801439850948198400, 3169365352513536000]);
 }
+
+#[test]
+fn fuzz_push_instr_stack_overrun1() {
+    let ops = vec![ DigitSum, DigitSum, Praise, LenSum, Modulo, LSwap, Modulo, DigitSum, LSwap, Universal, DigitSum, DigitSum, DigitSum, DigitSum, Remainder, TetrationItersNum, Increment, Universal, Increment, DigitSum, DigitSum, DigitSum, DigitSum, Remainder, Goto ];
+    verify_repro_const(ops, vec![0], vec![9042424975578791205]);
+}
+
+#[test]
+fn fuzz_push_instr_stack_overrun2() {
+    let ops = vec![ DigitSum, DigitSum, Praise, Gcd2, Modulo, LSwap, Pop2, DigitSum, LSwap, Universal, Increment, DigitSum, DigitSum, DigitSum, DigitSum, Remainder, Modulo, Universal, Increment, DigitSum, DigitSum, DigitSum, DigitSum, Remainder, Modulo, Universal, Increment, DigitSum, DigitSum, DigitSum, DigitSum, Remainder, TetrationItersNum, Increment, Universal, Increment, DigitSum, DigitSum, DigitSum, DigitSum, Remainder, Goto ];
+    verify_repro_const(ops, vec![0], vec![-5806858800873003521]);
+}

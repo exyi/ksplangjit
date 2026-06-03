@@ -844,12 +844,12 @@ impl GraphBuilder {
         #[cfg(debug_assertions)] {
             // help with debugging stack overflow
             self.instr_simplification_stack_debug.push(instr.clone());
-            // if self.instr_simplification_stack_debug.len() > 30 {
-            //     for (ix, instr) in self.instr_simplification_stack_debug.iter().enumerate() {
-            //         println!("STACK {ix:>5} {instr}");
-            //     }
-            //     panic!("Looks like we have infinite push_instr from simplifier situation.\ninstr: {instr}\n\nCFG: {self}")
-            // }
+            if self.instr_simplification_stack_debug.len() > 30 {
+                for (ix, instr) in self.instr_simplification_stack_debug.iter().enumerate() {
+                    println!("STACK {ix:>5} {instr}");
+                }
+                panic!("Looks like we have infinite push_instr from simplifier situation.\ninstr: {instr}\n\nCFG: {self}")
+            }
         }
         self.instr_simplification_depth += 1;
         let (mut instr, simplifier_range) = simplifier::simplify_instr(self, instr, simplifier::InstrSimplOpt {
