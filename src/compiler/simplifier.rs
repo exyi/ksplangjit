@@ -509,14 +509,13 @@ fn simplify_cond_core(cfg: &mut GraphBuilder, condition: &Condition<ValueId>, at
                         }
 
                         // simplify a <??> (x % Const2) by splitting the ranges
-                        if def.inputs.len() == 2 && def.inputs[1].is_constant() &&
-                            matches!(condition, Condition::Eq(_, _) | Condition::Neq(_, _)) // TODO: can we generalize this for ranges? seems tricky
-                        {
+                        if def.inputs.len() == 2 && def.inputs[1].is_constant() {
                             let (condition, is_negated) = if let Condition::Neq(_, _) = &condition { (condition.clone().neg(), true) }
                                                           else                                     { (condition.clone(), false) };
                             let mod_c = cfg.get_constant_(def.inputs[1]);
                             let mod_x = def.inputs[0];
-                            let (x_start, x_end) = cfg.val_range_at(mod_x, at).into_inner();
+                            let x_range = cfg.val_range_at(mod_x, at);
+                            let (x_start, x_end) = x_range.clone().into_inner();
 
                             if mod_c > 0 && x_end.saturating_sub(x_start) <= mod_c {
                                 let chunks = mod_split_ranges(x_start..=x_end, mod_c, matches!(def.op, OptOp::ModEuclid));
@@ -535,7 +534,7 @@ fn simplify_cond_core(cfg: &mut GraphBuilder, condition: &Condition<ValueId>, at
                                 {
                                     // condition overlaps only in one range -> we can re-map there
                                     let new_r = intersect_range(input_range, cond_range.start().saturating_add(offset)..=cond_range.end().saturating_add(offset));
-                                    let rc = create_range_constraint_condition(cfg, mod_x, rem_range, &new_r);
+                                    let rc = create_range_constraint_condition(cfg, mod_x, &x_range, &new_r);
                                     if rc.len() == 1 {
                                         return rc[0].clone().neg_if(is_negated);
                                     } else {

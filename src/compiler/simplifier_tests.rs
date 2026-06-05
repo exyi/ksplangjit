@@ -77,6 +77,17 @@ fn test_mod_simplification_lt_const_imax() {
 }
 
 #[test]
+fn test_mod_comparison_simplification_through_max() {
+    let (mut g, [x]) = create_graph([0..=5]);
+
+    let max = g.push_instr(OptOp::Max, &[ValueId::C_FOUR, x], false, Some(4..=5), None).0;
+    let m = g.push_instr(OptOp::Mod, &[max, ValueId::C_FIVE], false, Some(0..=4), None).0;
+
+    // 1 >= max(4, x) % 5  =>  max(4, x) == 5  =>  x == 5
+    assert_eq!(simplify_cond(&mut g, Condition::Geq(ValueId::C_ONE, m), END_INSTR), Condition::Eq(ValueId::C_FIVE, x));
+}
+
+#[test]
 fn test_mul_simplification_gt_negative_multiplier() {
     let (mut g, [x]) = create_graph([-99..=99]);
     let mul = g.push_instr(OptOp::Mul, &[ValueId::C_NEG_TWO, x], false, None, None).0;
