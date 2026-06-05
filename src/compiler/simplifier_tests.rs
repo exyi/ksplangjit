@@ -27,6 +27,89 @@ fn test_mod_simplification() {
 }
 
 #[test]
+fn test_ksplang_ops_increment_same_condition_merge() {
+    let (mut g, [a, b, c]) = create_graph([0..=100, 0..=100, 0..=100]);
+    let cond = Condition::Eq(a, b);
+
+    g.push_instr(OptOp::KsplangOpsIncrement(cond.clone()), &[a], false, None, None);
+    g.push_instr(OptOp::Pop, &[], false, None, None);
+    g.push_instr(OptOp::KsplangOpsIncrement(cond.clone()), &[c], false, None, None);
+
+    let incs = g.current_block_ref().instructions.values()
+        .filter(|instr| matches!(instr.op, OptOp::KsplangOpsIncrement(_)))
+        .collect::<Vec<_>>();
+    assert_eq!(incs.len(), 1, "{g}");
+    assert_eq!(incs[0].op, OptOp::KsplangOpsIncrement(cond));
+    assert_eq!(incs[0].inputs.as_slice(), &[a, c]);
+}
+
+#[test]
+fn test_ksplang_ops_increment_merge_stops_at_checkpoint() {
+    let (mut g, [a, b, c]) = create_graph([0..=100, 0..=100, 0..=100]);
+    let cond = Condition::Eq(a, b);
+
+    g.push_instr(OptOp::KsplangOpsIncrement(cond.clone()), &[a], false, None, None);
+    g.push_checkpoint();
+    g.push_instr(OptOp::KsplangOpsIncrement(cond), &[c], false, None, None);
+
+    let inc_count = g.current_block_ref().instructions.values()
+        .filter(|instr| matches!(instr.op, OptOp::KsplangOpsIncrement(_)))
+        .count();
+    assert_eq!(inc_count, 2, "{g}");
+}
+
+#[test]
+fn test_ksplang_ops_increment_same_condition_skips_unrelated_increment() {
+    let (mut g, [a, b, c, d]) = create_graph([0..=100, 0..=100, 0..=100, 0..=100]);
+    let cond_a = Condition::Eq(a, b);
+    let cond_b = Condition::Eq(c, d);
+
+    g.push_instr(OptOp::KsplangOpsIncrement(cond_a.clone()), &[ValueId::C_ONE], false, None, None);
+    g.push_instr(OptOp::KsplangOpsIncrement(cond_b.clone()), &[ValueId::C_ONE], false, None, None);
+    g.push_instr(OptOp::KsplangOpsIncrement(cond_a.clone()), &[ValueId::C_ONE], false, None, None);
+    g.push_instr(OptOp::KsplangOpsIncrement(cond_b.clone()), &[ValueId::C_ONE], false, None, None);
+
+    let incs = g.current_block_ref().instructions.values()
+        .filter(|instr| matches!(instr.op, OptOp::KsplangOpsIncrement(_)))
+        .collect::<Vec<_>>();
+    assert_eq!(incs.len(), 2, "{g}");
+    assert!(incs.iter().any(|instr| instr.op == OptOp::KsplangOpsIncrement(cond_a.clone()) && instr.inputs.as_slice() == &[ValueId::C_TWO]), "{g}");
+    assert!(incs.iter().any(|instr| instr.op == OptOp::KsplangOpsIncrement(cond_b.clone()) && instr.inputs.as_slice() == &[ValueId::C_TWO]), "{g}");
+}
+
+#[test]
+fn test_ksplang_ops_increment_opposite_condition_const_merge() {
+    let (mut g, [a, b]) = create_graph([0..=100, 0..=100]);
+
+    g.push_instr(OptOp::KsplangOpsIncrement(Condition::Eq(a, b)), &[ValueId::C_TWO], false, None, None);
+    g.push_instr(OptOp::KsplangOpsIncrement(Condition::Neq(a, b)), &[ValueId::C_FIVE], false, None, None);
+
+    let incs = g.current_block_ref().instructions.values()
+        .filter(|instr| matches!(instr.op, OptOp::KsplangOpsIncrement(_)))
+        .collect::<Vec<_>>();
+    println!("{g}");
+    assert_eq!(g.current_block_ref().ksplang_instr_count, 2);
+    assert_eq!(incs.len(), 1, "{g}");
+    assert_eq!(incs[0].op, OptOp::KsplangOpsIncrement(Condition::Neq(a, b)));
+    assert_eq!(incs[0].inputs.as_slice(), &[ValueId::C_THREE]);
+}
+
+#[test]
+fn test_ksplang_ops_increment_opposite_condition_equal_value_merge() {
+    let (mut g, [a, b, c]) = create_graph([0..=100, 0..=100, 0..=100]);
+
+    g.push_instr(OptOp::KsplangOpsIncrement(Condition::Eq(a, b)), &[c], false, None, None);
+    g.push_instr(OptOp::KsplangOpsIncrement(Condition::Neq(a, b)), &[c], false, None, None);
+
+    let incs = g.current_block_ref().instructions.values()
+        .filter(|instr| matches!(instr.op, OptOp::KsplangOpsIncrement(_)))
+        .collect::<Vec<_>>();
+    assert_eq!(incs.len(), 1, "{g}");
+    assert_eq!(incs[0].op, OptOp::KsplangOpsIncrement(Condition::True));
+    assert_eq!(incs[0].inputs.as_slice(), &[c]);
+}
+
+#[test]
 fn test_add_const_simplification() {
     let (mut g, [a]) = create_graph([0..=100]);
     let c10 = g.store_constant(10);

@@ -4,7 +4,7 @@ use arrayvec::ArrayVec;
 use num_integer::{Integer, Roots};
 use smallvec::{SmallVec, ToSmallVec, smallvec};
 
-use crate::{compiler::{analyzer::cond_implies, cfg::GraphBuilder, ops::{InstrId, OpEffect, OptInstr, OptOp, ValueId}, osmibytecode::Condition, pattern::OptOptPattern, range_ops::{IRange, mod_split_ranges, range_pow_const, range_signum}, utils::{FULL_RANGE, abs_range, all_equal, intersect_range, range_is_signless, union_range}}, digit_sum::{self, evaluate_constant_propagation_feasibility}, vm::{self, OperationError}};
+use crate::{compiler::{analyzer::cond_implies, cfg::{BasicBlock, GraphBuilder}, ops::{InstrId, OpEffect, OptInstr, OptOp, ValueId}, osmibytecode::Condition, pattern::OptOptPattern, range_ops::{IRange, mod_split_ranges, range_pow_const, range_signum}, utils::{FULL_RANGE, abs_range, all_equal, intersect_range, range_is_signless, union_range}}, digit_sum::{self, evaluate_constant_propagation_feasibility}, vm::{self, OperationError}};
 
 use super::pattern::{OptOptPattern as P};
 
@@ -242,7 +242,7 @@ fn simplify_cond_core(cfg: &mut GraphBuilder, condition: &Condition<ValueId>, at
                             Condition::Leq(_, _) => Condition::True, // 0 <= CS(b)
                             Condition::Gt(_, _) => Condition::False, // 0 > CS(b)
                             Condition::Geq(_, _) => Condition::Eq(a, b2), // 0 >= CS(b)
-                            x => unreachable!()
+                            _ => unreachable!()
                         }
                     }
 
@@ -986,6 +986,24 @@ fn merge_constants(cfg: &mut GraphBuilder, i: &mut OptInstr, merge: impl FnMut(i
     false
 }
 
+fn try_increment_block_opcount(block: &mut BasicBlock, increment: i64) -> bool {
+    match (block.ksplang_instr_count as i64 + increment).try_into() {
+        Err(_) => false,
+        Ok(new_count) => {
+            block.ksplang_instr_count = new_count;
+            return true
+        }
+    }
+}
+
+fn try_find_previous_ops_increment<'a>(block: &'a BasicBlock,
+                                       condition: &Condition<ValueId>,
+                                       filter: impl Fn(&OptInstr) -> bool) -> Option<&'a OptInstr> {
+    block.instructions.values().rev()
+        .take_while(|instr| !matches!(instr.op, OptOp::Checkpoint))
+        .find(|instr| matches!(&instr.op, OptOp::KsplangOpsIncrement(cond2) if cond2 == condition && filter(instr)))
+}
+
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct InstrSimplOpt {
     pub allow_push_instr: bool
@@ -1597,28 +1615,79 @@ pub fn simplify_instr(cfg: &mut GraphBuilder, mut i: OptInstr, opt: InstrSimplOp
 
             OptOp::KsplangOpsIncrement(Condition::True) if i.inputs[0].is_constant() => {
                 let c = cfg.get_constant_(i.inputs[0]);
-                let b = cfg.block_mut_(i.id.block_id());
-                b.ksplang_instr_count = (b.ksplang_instr_count as i64 + c).try_into().unwrap();
-                if i.inputs.len() == 1 {
-                    return (i.clone().with_op(OptOp::Nop, &[], OpEffect::None), None);
+                if try_increment_block_opcount(cfg.block_mut_(i.id.block_id()), c) {
+                    if i.inputs.len() == 1 {
+                        return (i.clone().with_op(OptOp::Nop, &[], OpEffect::None), None);
+                    }
+                    i.inputs.remove(0);
+                    continue;
                 }
-                i.inputs.remove(0);
+            }
+
+            OptOp::KsplangOpsIncrement(Condition::True)
+                if i.inputs.len() == 1 &&
+                   let Some(def) = cfg.val_info(i.inputs[0]).and_then(|v| v.assigned_at).and_then(|iid| cfg.get_instruction(iid)) &&
+                   let OptOp::Select(condition) = &def.op =>
+            {
+                let condition = condition.clone();
+                if def.inputs[0] == ValueId::C_ZERO {
+                    i.op = OptOp::KsplangOpsIncrement(condition.neg());
+                    i.inputs = smallvec![def.inputs[1]];
+                    continue;
+                }
+                if def.inputs[1] == ValueId::C_ZERO {
+                    i.op = OptOp::KsplangOpsIncrement(condition);
+                    i.inputs = smallvec![def.inputs[0]];
+                    continue;
+                }
+                if let Some(a) = cfg.get_constant(def.inputs[0]) &&
+                   let Some(b) = cfg.get_constant(def.inputs[1]) &&
+                   try_increment_block_opcount(cfg.block_mut_(i.id.0), cmp::min(a, b)) {
+                    debug_assert!(a != b);
+                    i.op = OptOp::KsplangOpsIncrement(condition.neg_if(a < b));
+                    let c = cfg.store_constant((a - b).abs());
+                    i.inputs[0] = c;
+                    continue;
+                }
+            }
+
+            OptOp::KsplangOpsIncrement(condition)
+                if let Some(prev_inc) = try_find_previous_ops_increment(cfg.current_block_ref(), condition, |_| true) =>
+            {
+                i.inputs.extend_from_slice(&prev_inc.inputs);
+                cfg.remove_instruction(prev_inc.id, false);
                 continue;
             }
 
-            OptOp::KsplangOpsIncrement(Condition::True) if i.inputs.len() == 1 => {
-                if let Some(def) = cfg.val_info(i.inputs[0]).and_then(|v| v.assigned_at).and_then(|iid| cfg.get_instruction(iid)) {
-                    if let OptOp::Select(condition) = &def.op && def.inputs[0] == ValueId::C_ZERO {
-                        i.op = OptOp::KsplangOpsIncrement(condition.clone().neg());
-                        i.inputs = smallvec![def.inputs[1]];
-                        continue;
+            OptOp::KsplangOpsIncrement(condition)
+                if i.inputs[0].is_constant() &&
+                   let Some(prev_inc) = try_find_previous_ops_increment(cfg.current_block_ref(), &condition.clone().neg(), |i| i.inputs[0].is_constant()) =>
+            {
+                let prev_id = prev_inc.id;
+                let prev_const = cfg.get_constant_(prev_inc.inputs[0]);
+                let instr_const = cfg.get_constant_(i.inputs[0]);
+                if prev_const > instr_const {
+                    let new_val = cfg.store_constant(prev_const - instr_const);
+                    cfg.instr_mut_(prev_id).inputs[0] = new_val;
+                    i.inputs.remove(0);
+                } else {
+                    if prev_inc.inputs.len() > 1 {
+                        cfg.instr_mut_(prev_id).inputs.remove(0);
+                    } else {
+                        cfg.remove_instruction(prev_id, false);
                     }
-                    if let OptOp::Select(condition) = &def.op && def.inputs[1] == ValueId::C_ZERO {
-                        i.op = OptOp::KsplangOpsIncrement(condition.clone());
-                        i.inputs = smallvec![def.inputs[0]];
-                        continue;
-                    }
+                    i.inputs[0] = cfg.store_constant(instr_const - prev_const);
                 }
+
+                assert!(try_increment_block_opcount(cfg.current_block_mut(), cmp::min(prev_const, instr_const)), "can it?");
+                continue;
+            }
+
+            OptOp::KsplangOpsIncrement(condition)
+                if let Some(prev_inc) = try_find_previous_ops_increment(cfg.current_block_ref(), &condition.clone().neg(), |p| p.inputs == i.inputs) =>
+            {
+                cfg.remove_instruction(prev_inc.id, false);
+                i.op = OptOp::KsplangOpsIncrement(Condition::True);
             }
 
             OptOp::Tetration if i.inputs[1] == ValueId::C_ONE => {

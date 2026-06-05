@@ -1162,6 +1162,13 @@ impl GraphBuilder {
         self.block_mut(id.block_id())?.instructions.get_mut(&id.instr_ix())
     }
 
+    pub fn instr_mut_(&mut self, id: InstrId) -> &mut OptInstr {
+        let Some(i) = self.instr_mut(id) else {
+            panic!("Instruction {id} not found")
+        };
+        return i;
+    }
+
     pub fn set_effect(&mut self, id: InstrId, effect: OpEffect) {
         let instr = self.instr_mut(id).unwrap();
         instr.effect = effect;

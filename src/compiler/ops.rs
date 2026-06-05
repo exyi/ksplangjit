@@ -282,7 +282,7 @@ impl<TVal: Clone + PartialEq + Eq + Display + Debug> OptOp<TVal> {
 
     pub fn is_commutative(&self, arg_count: usize) -> Range<usize> {
         match self {
-            OptOp::Add | OptOp::Mul | OptOp::And | OptOp::Or | OptOp::Xor | OptOp::Gcd | OptOp::Max | OptOp::Min | OptOp::AbsSub | OptOp::Median | OptOp::Funkcia | OptOp::LenSum => 0..arg_count,
+            OptOp::Add | OptOp::Mul | OptOp::And | OptOp::Or | OptOp::Xor | OptOp::Gcd | OptOp::Max | OptOp::Min | OptOp::AbsSub | OptOp::Median | OptOp::Funkcia | OptOp::LenSum | OptOp::KsplangOpsIncrement(_) => 0..arg_count,
             _ => 0..0,
         }
     }
