@@ -1,5 +1,7 @@
-use std::{any::{Any, TypeId}, borrow::Borrow, cmp, collections::HashSet, fmt::Debug, ops::RangeInclusive, panic::RefUnwindSafe, sync::Arc};
+use core::fmt;
+use std::{any::{Any, TypeId}, borrow::Borrow, cell::RefCell, cmp, collections::{BTreeSet, HashSet}, fmt::Debug, ops::{Add, RangeInclusive}, panic::RefUnwindSafe, sync::Arc};
 
+use num_integer::Integer;
 use num_traits::{Bounded, CheckedMul, One, SaturatingAdd, SaturatingMul, SaturatingSub, Zero};
 use rustc_hash::FxHashMap;
 use smallvec::{Array, SmallVec};
@@ -289,4 +291,91 @@ impl Debug for Annotations {
         }
         map.finish()
     }
+}
+
+struct FormattableHack<F> { f: RefCell<Option<F>> }
+
+impl<F: FnOnce(&mut fmt::Formatter) -> Result<(), fmt::Error>> fmt::Display for FormattableHack<F> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let func = self.f.borrow_mut().take().unwrap();
+        func(formatter)
+    }
+}
+
+pub fn fmt_callback_hack<F: FnOnce(&mut fmt::Formatter) -> Result<(), fmt::Error>>(f: F) -> String {
+    format!("{}", FormattableHack { f: RefCell::new(Some(f)) })
+}
+
+pub fn print_callback_hack<F: FnOnce(&mut fmt::Formatter) -> Result<(), fmt::Error>>(f: F) {
+    print!("{}", FormattableHack { f: RefCell::new(Some(f)) })
+}
+
+
+#[derive(Copy, Clone, Eq, PartialEq)]
+pub struct NumFmt<T>(pub T);
+
+impl<T: Into<i128> + Bounded + Clone> fmt::Display for NumFmt<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let num: i128 = self.0.clone().into();
+        if num.abs() <= 1050 {
+            return write!(f, "{}", num)
+        }
+        if num == T::min_value().into() {
+            return write!(f, "MIN")
+        }
+        if num == T::max_value().into() {
+            return write!(f, "MAX")
+        }
+        if num <= T::min_value().into() + 256 {
+            return write!(f, "MIN+{}", num.abs_diff(T::min_value().into()))
+        }
+        if num >= T::max_value().into() - 256 {
+            return write!(f, "MAX-{}", num.abs_diff(T::max_value().into()))
+        }
+
+        let decimal = num.to_string();
+        let hex = format!("{:X}", num.unsigned_abs());
+
+        if hex.chars().filter(|&x| x != '0').collect::<BTreeSet<char>>().len() < decimal.chars().filter(|&x| x != '0').collect::<BTreeSet<char>>().len() {
+            let sign = if num < 0 { "-" } else { "" };
+            write!(f, "{sign}0x{hex}")
+        } else {
+            write!(f, "{decimal}")
+        }
+    }
+}
+
+#[derive(Clone, Eq, PartialEq)]
+pub struct RangeFmt<T>(pub RangeInclusive<T>);
+
+impl<T: Bounded + Into<i128> + Eq + Clone> fmt::Display for RangeFmt<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let r = &self.0;
+        if r.start() == &T::min_value() {
+            if r.end() == &T::max_value() {
+                write!(f, " ..= ")
+            } else {
+                write!(f, " ..={}", NumFmt(r.end().clone()))
+            }
+        } else {
+            if r.end() == &T::max_value() {
+                write!(f, "{}..= ", NumFmt(r.start().clone()))
+            } else {
+                write!(f, "{}..={}", NumFmt(r.start().clone()), NumFmt(r.end().clone()))
+            }
+        }
+    }
+}
+
+pub fn int_to_letters(mut num: u64) -> String {
+    if num == 0 { return "0".to_owned() }
+
+    let mut chars = Vec::new();
+    while num > 0 {
+        num -= 1;
+        chars.push((b'A' + (num % 26) as u8) as char);
+        num /= 26;
+    }
+
+    chars.iter().rev().collect()
 }

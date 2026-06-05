@@ -31,6 +31,7 @@ pub struct JitConfig {
 
     pub cheat_mode: u8,
 
+    pub print_assumptions: bool,
     pub info_dump_dir: Option<String>,
 }
 
@@ -113,6 +114,7 @@ fn create_config() -> JitConfig {
 
         cheat_mode: parse_env("KSPLANGJIT_CHEAT", 1),
 
+        print_assumptions: parse_env("KSPLANGJIT_PRINT_ASSUMPTIONS", false),
         info_dump_dir: std::env::var("KSPLANGJIT_DUMPDIR").ok().filter(|c| !c.is_empty())
     };
     if c.yield_interval == 0 {

@@ -3,7 +3,7 @@ use std::{cmp, collections::BTreeSet, fmt::{self, Debug, Display}, num::NonZeroI
 use num_integer::Integer;
 use smallvec::{SmallVec, ToSmallVec};
 
-use crate::{compiler::{osmibytecode::Condition, range_ops::{eval_combi, range_and, range_div, range_mod, range_mod_euclid, range_num_digits, range_or, range_xor}, utils::{Annotations, FULL_RANGE, SaturatingInto, abs_range, add_range, intersect_range, mul_range, range_2_i64, sub_range, union_range}}, digit_sum, funkcia, vm::{self, OperationError, median}};
+use crate::{compiler::{osmibytecode::Condition, range_ops::{eval_combi, range_and, range_div, range_mod, range_mod_euclid, range_num_digits, range_or, range_xor}, utils::{Annotations, FULL_RANGE, NumFmt, RangeFmt, SaturatingInto, abs_range, add_range, int_to_letters, intersect_range, mul_range, range_2_i64, sub_range, union_range}}, digit_sum, funkcia, vm::{self, OperationError, median}};
 
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -96,13 +96,15 @@ impl fmt::Display for ValueId {
         if self.is_null() {
             write!(f, "∅")
         } else if let Some(c) = self.to_predefined_const() {
-            write!(f, "{}", c)
+            write!(f, "{}", NumFmt(c))
         } else if self.is_constant() {
             write!(f, "c{}", -self.0 - Self::PREDEF_RANGE)
         } else if self.is_new_value_placeholder() {
-            write!(f, "vNEW")
+            // write!(f, "vNEW")
+            write!(f, "new")
         } else {
-            write!(f, "v{}", self.0)
+            // write!(f, "v{}", self.0)
+            write!(f, "v{}", int_to_letters(self.0 as u64))
         }
     }
 }
@@ -840,15 +842,16 @@ impl OptInstr {
         if self.out.is_computed() {
             let out_range = val_range(self.out);
             if out_range != FULL_RANGE {
-                let sgn_a = if *out_range.start() >= 0 { "" } else { "-" };
-                let sgn_b = if *out_range.end() >= 0 { "" } else { "-" };
-                if *out_range.start() == i64::MIN {
-                    write!(f, " ..={sgn_b}{:x}", out_range.end())?;
-                } else if *out_range.end() == i64::MAX {
-                    write!(f, " {sgn_a}{:x}..=", out_range.start())?;
-                } else {
-                    write!(f, " {sgn_a}{:x}..={sgn_b}{:x}", out_range.start().unsigned_abs(), out_range.end().unsigned_abs())?;
-                }
+                write!(f, "{}", RangeFmt(out_range))?;
+                // let sgn_a = if *out_range.start() >= 0 { "" } else { "-" };
+                // let sgn_b = if *out_range.end() >= 0 { "" } else { "-" };
+                // if *out_range.start() == i64::MIN {
+                //     write!(f, " ..={sgn_b}{:x}", out_range.end())?;
+                // } else if *out_range.end() == i64::MAX {
+                //     write!(f, " {sgn_a}{:x}..=", out_range.start())?;
+                // } else {
+                //     write!(f, " {sgn_a}{:x}..={sgn_b}{:x}", out_range.start().unsigned_abs(), out_range.end().unsigned_abs())?;
+                // }
             }
         }
         if matches!(self.op, OptOp::Checkpoint) {

@@ -146,7 +146,7 @@ pub fn digit_sum_find_in_range(r: RangeInclusive<u64>, target_ds: i64) -> Option
     let mut pesimistic = optimistic - 1;
     let mut pesimistic_sum = optimistic_sum - 1;
 
-    println!("DBG {optimistic} {optimistic_sum} {pesimistic} {pesimistic_sum}");
+    // println!("DBG {optimistic} {optimistic_sum} {pesimistic} {pesimistic_sum}");
 
     let mut pesimistic_size = common_size + 1;
     for ix in (common_size + 1)..lo_str.len() {
@@ -160,7 +160,7 @@ pub fn digit_sum_find_in_range(r: RangeInclusive<u64>, target_ds: i64) -> Option
 
         let remaining_len = (lo_str.len() - ix) as i64;
 
-        println!("DBG optimistic {optimistic} sum={optimistic_sum} digit={digit} target_ds={target_ds} (pesimist can reach {})", optimistic_sum - 1 + remaining_len * 9);
+        // println!("DBG optimistic {optimistic} sum={optimistic_sum} digit={digit} target_ds={target_ds} (pesimist can reach {})", optimistic_sum - 1 + remaining_len * 9);
         if optimistic % 10 > 0 && optimistic_sum - 1 + remaining_len * 9 >= target_ds {
             // pesimist has a chance from here
             pesimistic_size = ix;
@@ -173,7 +173,7 @@ pub fn digit_sum_find_in_range(r: RangeInclusive<u64>, target_ds: i64) -> Option
     }
 
     for ix in pesimistic_size..lo_str.len() {
-        println!("DBG pesimistic {pesimistic} sum={pesimistic_sum}  target_ds={target_ds}");
+        // println!("DBG pesimistic {pesimistic} sum={pesimistic_sum}  target_ds={target_ds}");
         if pesimistic_sum + 9 >= target_ds {
             let dg = target_ds - pesimistic_sum;
             assert!(dg > 0 && dg <= 9);

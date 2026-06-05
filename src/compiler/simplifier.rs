@@ -573,6 +573,14 @@ fn simplify_cond_core(cfg: &mut GraphBuilder, condition: &Condition<ValueId>, at
                         }
                     }
                 }
+
+                // if let OptOp::Select(cond_b) = &defB.op &&
+                //    let Some(defA) = cfg.get_defined_at(a) &&
+                //    let OptOp::Select(cond_a) = &defA.op &&
+                //    cond_a.regs().iter().any(|r| r.is_computed() && cond_b.regs().contains(r))
+                // {
+                //     todo!("{condition} {cfg}")
+                // }
             }
 
             condition

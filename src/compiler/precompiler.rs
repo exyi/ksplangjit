@@ -4,7 +4,7 @@ use rustc_hash::{FxHashMap as HashMap};
 use num_integer::Integer;
 use smallvec::{SmallVec, smallvec};
 
-use crate::{compiler::{cfg::{GraphBuilder, StackState}, cheats::try_cheat, config::{JitConfig, get_config}, ops::{BlockId, InstrId, OpEffect, OptInstr, OptOp, ValueId}, opt_hoisting::{hoist_down, hoist_up}, osmibytecode::Condition, range_ops::{IRange, eval_combi, range_div, range_num_digits}, simplifier::{self, simplify_cond}, utils::{FULL_RANGE, abs_range, add_range, eval_combi_u64, intersect_range, range_2_i64, sort_tuple, sub_range}}, digit_sum::digit_sum, funkcia::funkcia, ops::Op, vm::{self, OperationError, QuadraticEquationResult, solve_quadratic_equation}};
+use crate::{compiler::{cfg::{GraphBuilder, StackState}, cheats::try_cheat, config::{JitConfig, get_config}, ops::{BlockId, InstrId, OpEffect, OptInstr, OptOp, ValueId}, opt_hoisting::{hoist_down, hoist_up}, osmibytecode::Condition, range_ops::{IRange, eval_combi, range_div, range_num_digits}, simplifier::{self, simplify_cond}, utils::{FULL_RANGE, abs_range, add_range, eval_combi_u64, intersect_range, print_callback_hack, range_2_i64, sort_tuple, sub_range}}, digit_sum::digit_sum, funkcia::funkcia, ops::Op, vm::{self, OperationError, QuadraticEquationResult, solve_quadratic_equation}};
 
 pub trait TraceProvider {
     // type TracePointer
@@ -1450,14 +1450,8 @@ impl<'a, TP: TraceProvider> Precompiler<'a, TP> {
                         .map(|r| format!("{}:{:?}; ", r.0, r.1))
                         .collect();
                 print!("  Current Block: ");
-                // TODO: wtf
-                struct DisplayBlockWithRanges<'a>(&'a crate::compiler::cfg::BasicBlock, &'a GraphBuilder);
-                impl<'a> std::fmt::Display for DisplayBlockWithRanges<'a> {
-                    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        self.0.richer_fmt(f, |v| self.1.val_range(v))
-                    }
-                }
-                println!("{}", DisplayBlockWithRanges(self.g.current_block_ref(), &self.g));
+                print_callback_hack(|f| self.g.fmt_block(f, self.g.current_block_ref()));
+                println!();
                 println!("  Stack: {}", self.g.fmt_stack());
                 println!("Interpreting op {}: {:?}", self.position, self.ops[self.position]);
                 if trace_results_fmt.len() > 0 {

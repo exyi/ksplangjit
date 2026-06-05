@@ -1856,6 +1856,8 @@ impl OptimizingVM {
             let mut f = BufWriter::new(File::create(Path::new(dump_dir).join(format!("compiled-{}{}-cfg.txt", start_ip, if reversed { "-rev" } else { "" }))).unwrap());
             writeln!(f, "Optimized at {start_ip} rev={reversed}: {cfg_instr_count} instructions, from {gain_from} ksplang").unwrap();
             writeln!(f, "{cfg}").unwrap();
+            let mut dot_f = BufWriter::new(File::create(Path::new(dump_dir).join(format!("compiled-{}{}-cfg.dot", start_ip, if reversed { "-rev" } else { "" }))).unwrap());
+            writeln!(dot_f, "{}", cfg.graphviz()).unwrap();
             if let Some(obc) = &osmibytecode {
                 writeln!(f, "{obc}").unwrap();
             }

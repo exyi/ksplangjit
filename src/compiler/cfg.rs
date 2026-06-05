@@ -15,7 +15,7 @@ use rustc_hash::{FxHashMap as Map};
 #[cfg(not(debug_assertions))]
 use std::collections::{hash_map::Entry as MapEntry};
 
-use crate::{compiler::{analyzer::{self}, config::{JitConfig, get_config}, ops::{BeforeOrAfter, BlockId, InstrId, OpEffect, OptInstr, OptOp, ValueId, ValueInfo}, osmibytecode::Condition, range_ops::IRange, simplifier::{self, simplify_cond}, utils::{Annotations, FULL_RANGE, abs_range, intersect_range, union_range}}, vm::OperationError};
+use crate::{compiler::{analyzer::{self}, config::{JitConfig, get_config}, ops::{BeforeOrAfter, BlockId, InstrId, OpEffect, OptInstr, OptOp, ValueId, ValueInfo}, osmibytecode::Condition, range_ops::IRange, simplifier::{self, simplify_cond}, utils::{Annotations, FULL_RANGE, NumFmt, RangeFmt, abs_range, fmt_callback_hack, intersect_range, union_range}}, vm::OperationError};
 
 // #[derive(Debug, Clone, PartialEq)]
 // struct DeoptInfo<TReg> {
@@ -28,6 +28,8 @@ use crate::{compiler::{analyzer::{self}, config::{JitConfig, get_config}, ops::{
 // }
 
 const INSTR_ID_STEP: u32 = 10;
+
+type AssumptionDump = BTreeMap<InstrId, Vec<(ValueId, Condition<ValueId>, i64, i64)>>;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct BasicBlock {
@@ -98,7 +100,8 @@ impl BasicBlock {
     }
 
     pub fn richer_fmt(&self, f: &mut fmt::Formatter<'_>,
-                             mut val_range: impl FnMut(ValueId) -> IRange)
+                             mut val_range: impl FnMut(ValueId) -> IRange,
+                             mut fmt_assumptions: impl FnMut(&mut fmt::Formatter<'_>, Range<InstrId>) -> fmt::Result)
         -> fmt::Result {
         writeln!(f, "BB {}({}) [{}...{}] {{",
             self.id,
@@ -119,11 +122,15 @@ impl BasicBlock {
         if !self.outgoing_jumps.is_empty() {
             writeln!(f, "    // outgoing: {}", self.outgoing_jumps.iter().map(|(j, b)| format!("i{} -> {}", j.1, b)).collect::<Vec<_>>().join(", "))?;
         }
+        let mut prev_id = InstrId(self.id, 0);
         for instr in self.instructions.values() {
+            fmt_assumptions(f, prev_id..instr.id)?;
             write!(f, "    ")?;
             instr.richer_fmt(f, &mut val_range)?;
             writeln!(f)?;
+            prev_id = instr.id;
         }
+        fmt_assumptions(f, prev_id..InstrId(self.id, u32::MAX))?;
         if !self.is_finalized {
             writeln!(f, "    ...")?;
         }
@@ -133,7 +140,7 @@ impl BasicBlock {
 
 impl fmt::Display for BasicBlock {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.richer_fmt(f, |_| FULL_RANGE)
+        self.richer_fmt(f, |_| FULL_RANGE, |_, _| Ok(()))
     }
 }
 
@@ -273,6 +280,8 @@ pub struct GraphBuilder {
     pub push_instr_called: usize,
     pub conf: &'static JitConfig
 }
+
+pub struct GraphvizCfg<'a>(&'a GraphBuilder);
 
 impl GraphBuilder {
     pub fn new(start_ip: usize) -> Self {
@@ -1544,6 +1553,39 @@ impl GraphBuilder {
             self.clean_value(val);
         }
     }
+
+    pub fn graphviz(&self) -> GraphvizCfg<'_> { GraphvizCfg(self) }
+
+    pub fn fmt_block(&self, f: &mut fmt::Formatter<'_>, block: &BasicBlock) -> fmt::Result {
+        let assumptions = self.conf.print_assumptions.then(|| self.value_assumptions_by_instr());
+        block.richer_fmt(f, |v| self.val_range(v), |f, range| {
+            if let Some(assumptions) = &assumptions {
+                let f: &mut fmt::Formatter<'_> = f;
+                for (_, assumptions) in assumptions.range(range) {
+                    for (id, cond, from, to) in assumptions {
+                        if cond != &Condition::True {
+                            writeln!(f, "          // assume {}: {}    and {}", id, RangeFmt(*from..=*to), cond)?;
+                        } else {
+                            writeln!(f, "          // assume {}: {}", id, RangeFmt(*from..=*to))?;
+                        }
+                    }
+                }
+            }
+            Ok(())
+        })
+    }
+
+    fn value_assumptions_by_instr(&self) -> AssumptionDump {
+        let mut assumptions: AssumptionDump = BTreeMap::new();
+        for info in self.values.values() {
+            for (cond, from, to, assumption_at) in &info.assumptions {
+                assumptions.entry(*assumption_at)
+                    .or_default()
+                    .push((info.id, cond.clone(), *from, *to));
+            }
+        }
+        assumptions
+    }
 }
 
 
@@ -1553,12 +1595,49 @@ impl fmt::Display for GraphBuilder {
         writeln!(f, "CFG(blocks={}/{}):", self.blocks.len(), block_order.len())?;
         writeln!(f, "    current_block={}, Stack: {}", self.current_block, self.fmt_stack())?;
         for (id, v) in self.list_used_constants() {
-            writeln!(f, "{id} = {v}")?
+            writeln!(f, "{id} = {}", NumFmt(v))?
         }
 
         for bid in block_order {
-            self.block_(bid).richer_fmt(f, |v| self.val_range(v))?
+            self.fmt_block(f, self.block_(bid))?
         }
         Ok(())
+    }
+}
+
+impl fmt::Display for GraphvizCfg<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn dot_escape(s: &str) -> String {
+            s.replace('\\', "\\\\").replace('"', "\\\"").replace('\n', "\\l")
+        }
+
+        let g = self.0;
+        let block_order = analyzer::reverse_postorder(g);
+        writeln!(f, "digraph cfg {{")?;
+        writeln!(f, "    node [shape=box,fontname=\"monospace\"];")?;
+        for bid in &block_order {
+            let block = g.block_(*bid);
+            let label = dot_escape(&fmt_callback_hack(|f| g.fmt_block(f, block)));
+            writeln!(f, "    bb{} [label=\"{}\"];", bid.0, label)?;
+        }
+        for bid in &block_order {
+            let block = g.block_(*bid);
+            let mut previous_jumps = vec![];
+            for instr in block.instructions.values() {
+                if let OptOp::Jump(cond, target) = &instr.op {
+                    debug_assert!(g.block_(*target).is_reachable);
+                    let label = previous_jumps.iter()
+                        .chain([cond.clone()].iter())
+                        .filter(|cond| **cond != Condition::True)
+                        .map(|cond| format!("{cond}"))
+                        .collect::<Vec<_>>()
+                        .join(" & ");
+                    let label = format!("{label}  [i{}]", instr.id.1);
+                    writeln!(f, "    bb{} -> bb{} [label=\"{}\",fontname=\"monospace\"];", bid.0, target.0, dot_escape(&label))?;
+                    previous_jumps.push(cond.clone().neg());
+                }
+            }
+        }
+        writeln!(f, "}}")
     }
 }
