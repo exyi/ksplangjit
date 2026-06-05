@@ -320,7 +320,7 @@ impl<'a, TP: TraceProvider> Precompiler<'a, TP> {
         // try find previous anti-swap
         let mut interfering_swaps = vec![];
         let mut interfering_reads = vec![];
-        let mut has_effect = false;
+        let mut has_deopt = false;
         let mut has_pops = false;
         let mut has_branching = false;
         let mut found_anti_swap = None;
@@ -333,7 +333,7 @@ impl<'a, TP: TraceProvider> Precompiler<'a, TP> {
             for &iid in &iids {
                 let iid = InstrId(bid, iid);
                 let instr = &self.g.get_instruction_(iid);
-                let effect = !matches!(instr.effect, OpEffect::None | OpEffect::ControlFlow);
+                let may_deopt = instr.may_deopt(self.g.conf.error_as_deopt);
                 match instr.op {
                     OptOp::Push | OptOp::Pop => { has_pops = true; },
                     OptOp::StackSwap => {
@@ -364,7 +364,7 @@ impl<'a, TP: TraceProvider> Precompiler<'a, TP> {
                     _ => {
                     }
                 }
-                has_effect |= effect;
+                has_deopt |= may_deopt;
             }
             let block = self.g.block_(bid);
             if block.is_sealed && block.incoming_jumps.len() == 1 {
@@ -381,7 +381,7 @@ impl<'a, TP: TraceProvider> Precompiler<'a, TP> {
             }
             // try to optimize away the StackSwap completely if it just undoes previous one
             {
-                if !has_effect && !has_pops && !has_branching && interfering_swaps.is_empty() && interfering_reads.is_empty() {
+                if !has_deopt && !has_pops && !has_branching && interfering_swaps.is_empty() && interfering_reads.is_empty() {
                     let prev_swap = self.g.instr_mut(anti_swap).unwrap();
                     let &[prev_ix, prev_val] = prev_swap.inputs.as_slice() else { panic!() };
                     // rewrite previous swap to StackRead

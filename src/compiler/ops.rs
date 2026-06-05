@@ -779,6 +779,17 @@ impl OptInstr {
             _ => {}
         }
     }
+    pub fn may_deopt(&self, error_will_deopt: bool) -> bool {
+        match self.effect {
+            OpEffect::None => false,
+            OpEffect::ControlFlow => false,
+            OpEffect::CtrIncrement => false,
+            OpEffect::MayFail => error_will_deopt && !matches!(self.op, OptOp::Assert(_, OperationError::Unreachable)),
+            OpEffect::MayDeopt => true,
+            OpEffect::StackRead => true,
+            OpEffect::StackWrite => true,
+        }
+    }
     pub fn assert(condition: Condition<ValueId>, error: OperationError, value: Option<ValueId>) -> Self {
         Self::new(InstrId::UNDEFINED, OptOp::Assert(condition, error), value.as_slice(), ValueId::from(0))
     }

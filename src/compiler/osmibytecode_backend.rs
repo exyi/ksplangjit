@@ -1219,19 +1219,8 @@ impl<'a> Compiler<'a> {
         self.current_deopt = Some(deopt)
     }
 
-    fn needs_deopt(&self, instr: &OptInstr) -> bool {
-        if matches!(instr.op, OptOp::Assert(_, OperationError::Unreachable)) {
-            return false;
-        }
-        match instr.effect {
-            OpEffect::None | OpEffect::ControlFlow | OpEffect::CtrIncrement => false,
-            OpEffect::MayFail => self.g.conf.error_as_deopt,
-            _ => true
-        }
-    }
-
     fn save_deopt_maybe(&mut self, instr: &OptInstr) -> Option<u32> {
-        if self.needs_deopt(instr) {
+        if instr.may_deopt(self.g.conf.error_as_deopt) {
             self.save_deopt().ok()
         } else {
             None
@@ -1955,10 +1944,7 @@ fn get_value_usage_info(g: &GraphBuilder, block: &BasicBlock, error_will_deopt: 
             last_checkpoint = Some(i.inputs.iter().copied().filter(|c| c.is_computed()).collect());
             continue;
         }
-        let needs_checkpoint =
-            !matches!(i.op, OptOp::Assert(_, OperationError::Unreachable)) &&
-            !matches!(i.effect, OpEffect::None | OpEffect::ControlFlow | OpEffect::CtrIncrement) &&
-            (error_will_deopt || i.effect != OpEffect::MayFail);
+        let needs_checkpoint = i.may_deopt(error_will_deopt);
         if last_checkpoint.is_none() && (needs_checkpoint || matches!(i.op, OptOp::KsplangOpsIncrement(_) | OptOp::Pop | OptOp::StackSwap)) {
             // find checkpoint in previous blocks or panic
             let mut block_id = block.id;
