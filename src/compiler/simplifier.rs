@@ -1582,6 +1582,8 @@ pub fn simplify_instr(cfg: &mut GraphBuilder, mut i: OptInstr, opt: InstrSimplOp
                     continue;
                 }
             }
+            OptOp::KsplangOpsIncrement(_) if cfg.conf.dangerous_dont_count_ops =>
+                return (i.clone().with_op(OptOp::Nop, &[], OpEffect::None), None),
             OptOp::KsplangOpsIncrement(_) if i.inputs.len() == 0 || ranges == [0..=0] =>
                 return (i.clone().with_op(OptOp::Nop, &[], OpEffect::None), None),
             OptOp::KsplangOpsIncrement(_) if i.inputs.len() > 1 && i.inputs[1].is_constant() => {

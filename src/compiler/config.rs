@@ -30,6 +30,7 @@ pub struct JitConfig {
     pub shrinker_final_verbosity: u8,
 
     pub cheat_mode: u8,
+    pub dangerous_dont_count_ops: bool,
 
     pub print_assumptions: bool,
     pub info_dump_dir: Option<String>,
@@ -113,12 +114,17 @@ fn create_config() -> JitConfig {
         shrinker_final_verbosity: parse_env("KSPLANGJIT_SHRINKER_FINAL_VERBOSITY", verbosity),
 
         cheat_mode: parse_env("KSPLANGJIT_CHEAT", 1),
+        dangerous_dont_count_ops: parse_env("KSPLANGJIT_UNSAFE_UNTESTABLE_DONTCOUNTOPS_DONT_USE", false),
 
         print_assumptions: parse_env("KSPLANGJIT_PRINT_ASSUMPTIONS", false),
         info_dump_dir: std::env::var("KSPLANGJIT_DUMPDIR").ok().filter(|c| !c.is_empty())
     };
     if c.yield_interval == 0 {
         c.yield_interval = u32::MAX;
+    }
+
+    if c.dangerous_dont_count_ops {
+        assert_eq!(0, c.verify, "You know what to do");
     }
 
     #[cfg(not(debug_assertions))] {

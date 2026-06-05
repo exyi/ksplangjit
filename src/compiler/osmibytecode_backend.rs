@@ -89,7 +89,12 @@ impl<'a> Compiler<'a> {
                 added_increment = true;
 
                 if block.ksplang_instr_count != 0 {
-                    self.program.push(OsmibyteOp::KsplangOpsIncrement(block.ksplang_instr_count as i32));
+                    if !self.g.conf.dangerous_dont_count_ops || block.id.is_first_block() {
+                        //                                      ^^^^^^^^^^^^^^^^^^^^^^^^^
+                        //                  interpreter needs to know if the result is 0 OP deopt or
+                        //                  we actually did some work (for some heuristics)
+                        self.program.push(OsmibyteOp::KsplangOpsIncrement(block.ksplang_instr_count as i32));
+                    }
                     if let Some(deopt) = &mut self.current_deopt {
                         deopt.ksplang_ops_increment -= block.ksplang_instr_count as i64;
                     }
@@ -887,17 +892,19 @@ impl<'a> Compiler<'a> {
 
         let deopt = self.current_deopt.as_ref().unwrap();
 
+        let ops_increment = if self.g.conf.dangerous_dont_count_ops { 0 } else { deopt.ksplang_ops_increment };
+
         if lowered_condition == Condition::False &&
             matches!(instr.op, OptOp::DeoptAssert(_)) && // pointless optimization for unlikely asserts
             deopt.ip <= u32::MAX as usize &&
             deopt.stack_reconstruction.len() <= 7 * 3 &&
-            deopt.ksplang_ops_increment.unsigned_abs() <= i16::MAX as u64
+            ops_increment.unsigned_abs() <= i32::MAX as u64
         {
             // compile to Done instruction
             self.program.extend(deopt.opcodes.iter().cloned());
-            let ctr_inc = deopt.ksplang_ops_increment.try_into();
+            let ctr_inc = ops_increment.try_into();
             if ctr_inc.is_err() {
-                self.program.push(OsmibyteOp::KsplangOpsIncrement(deopt.ksplang_ops_increment.assert_into()));
+                self.program.push(OsmibyteOp::KsplangOpsIncrement(ops_increment.assert_into()));
             }
             let ip = deopt.ip;
             for regs in deopt.stack_reconstruction.clone().chunks(7) {
@@ -912,6 +919,7 @@ impl<'a> Compiler<'a> {
     }
 
     fn lower_ops_increment(&mut self, instr: &OptInstr, condition: Condition<ValueId>) {
+        debug_assert!(!self.g.conf.dangerous_dont_count_ops);
         let mut deopt: Vec<OsmibyteOp<RegId>> = vec![];
         let cond = self.lower_condition_with_mapping(
             condition,
