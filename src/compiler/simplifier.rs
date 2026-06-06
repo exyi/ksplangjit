@@ -535,6 +535,8 @@ fn simplify_cond_core(cfg: &mut GraphBuilder, condition: &Condition<ValueId>, at
                                     let rc = create_range_constraint_condition(cfg, mod_x, &x_range, &new_r);
                                     if rc.len() == 1 {
                                         return rc[0].clone().neg_if(is_negated);
+                                    } else if rc.len() == 0 {
+                                        return Condition::True.neg_if(is_negated);
                                     } else {
                                         return condition
                                     }

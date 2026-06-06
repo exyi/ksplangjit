@@ -1026,3 +1026,9 @@ fn fuzz_obc_ksplangopsincrement_runs_out_of_temp_registers() {
     let ops = vec![ And, Gcd2, BulkXor, Median, Median, Median, Median, Median, Median, Median, Median, Median, Median, TetrationItersNum, Median, TetrationItersNum, Median, Jump, Increment, Goto, Remainder ];
     verify_repro_const(ops, vec![27359], vec![-5794532213742588749, -7782220156096217089, -7748292343803488302]);
 }
+
+#[test]
+fn fuzz_condition_assumption_monotonicity() {
+    let ops = vec![ DigitSum, DigitSum, Praise, Increment, LenSum, LSwap, Modulo, Remainder, DigitSum, LSwap, Universal, TetrationNumIters, And, Goto, Pop ];
+    verify_repro_const(ops, vec![-1069390231808, 3393489295283584759, -1799215508322261204, -70083833109288985, 3470915402239386667, 39], vec![-4545381069291228, -593356947487424933]);
+}
