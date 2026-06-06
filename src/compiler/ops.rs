@@ -559,9 +559,9 @@ impl<TVal: Clone + PartialEq + Eq + Display + Debug> OptOp<TVal> {
                     .min();
 
                 let upper_bound = min_nonzero_end.unwrap_or(max_end);
-                let all_zeros = ranges.iter().all(|r| *r.start() == 0);
+                let lower_bound = if ranges.iter().all(|r| *r.start() == 0) { 0 } else { 1 };
 
-                Some(range_2_i64(if all_zeros { 0 } else { 1 }..=upper_bound))
+                Some(range_2_i64(lower_bound..=upper_bound))
             },
             OptOp::Median => {
                 let mut starts: Vec<i64> = inputs.iter().map(|r| *r.start()).collect();

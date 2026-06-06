@@ -1044,3 +1044,16 @@ fn fuzz_obc_ksplangopsincrement_simplification_arity_crash() {
     let ops = vec![ Max, DigitSum, DigitSum, Praise, DigitSum, LSwap, Funkcia, DigitSum, DigitSum, LSwap, DigitSum, Increment, BulkXor, Jump, Increment, BulkXor, DigitSum, Jump, Increment, BulkXor, Jump, Increment, GcdN, BranchIfZero ];
     verify_repro_const(ops, vec![0], vec![72057595581374557, 1670183915683841]);
 }
+
+#[test]
+fn fuzz_gcd_digit_sum_range_can_include_one() {
+    let ops = vec![ DigitSum, DigitSum, Praise, LenSum, LSwap, DigitSum, Pop, DigitSum, LSwap, Median, Max, LSwap, LenSum, Max, LSwap, DigitSum, Gcd2, LSwap, DigitSum, Max, Max, Max, Gcd2, Gcd2, Gcd2, Goto, DigitSum, LSwap ];
+    verify_repro_const(ops, vec![2954629636392222720, -919874483385270273], vec![2317491239693383168]);
+}
+
+#[test]
+fn fuzz_digit_sum_neq_single_preimage_simplification() {
+    let ops = vec![ DigitSum, Gcd2, Universal, DigitSum, DigitSum, Increment, Increment, Increment, DigitSum, DigitSum, LenSum ];
+    verify_repro_const(ops, vec![0], vec![-3746995114199744509, 1067625790819280]);
+}
+

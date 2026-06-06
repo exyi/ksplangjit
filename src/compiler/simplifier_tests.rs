@@ -151,6 +151,15 @@ fn test_digitsum_zero() {
 }
 
 #[test]
+fn test_digitsum_single_preimage_negates_for_neq() {
+    let (mut g, [a]) = create_graph([3..=21]);
+
+    let d = g.push_instr(OptOp::DigitSum, &[a], false, None, None).0;
+
+    assert_eq!(simplify_cond(&mut g, Condition::Neq(ValueId::C_TEN, d), END_INSTR), Condition::Neq(g.store_constant(19), a));
+}
+
+#[test]
 fn test_mod_simplification_gt_const_imin() {
     let (mut g, [x]) = create_graph([0..=10]);
     let m = g.push_instr(OptOp::Mod, &[x, ValueId::C_TWO], false, Some(0..=1), None).0;
@@ -586,6 +595,16 @@ fn test_gcd1_is_1() {
 
     let res = g.value_numbering(OptOp::Gcd, &[a, b, ValueId::C_ONE], None, None);
     assert_eq!(ValueId::C_ONE, res);
+}
+
+#[test]
+fn test_gcd_with_digit_sum_can_be_one() {
+    let (mut g, [a]) = create_graph([18..=53]);
+
+    let d = g.push_instr(OptOp::DigitSum, &[a], false, None, None).0;
+    let gcd = g.push_instr(OptOp::Gcd, &[a, d], false, None, None).0;
+
+    assert_eq!(g.val_range(gcd), 1..=13);
 }
 
 

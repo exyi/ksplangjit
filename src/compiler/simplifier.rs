@@ -257,7 +257,7 @@ fn simplify_cond_core(cfg: &mut GraphBuilder, condition: &Condition<ValueId>, at
                             for (i, &x) in xs.iter().enumerate() {
                                 let cond2 = Condition::Eq(cfg.store_constant(x), b2);
                                 if possible_condition.is_empty() && i + 1 == xs.len() {
-                                    return cond2
+                                    return cond2.neg_if(condition.is_neq())
                                 }
                                 match simplify_cond(cfg, cond2, at) {
                                     Condition::True => return Condition::True.neg_if(condition.is_neq()),
@@ -269,7 +269,7 @@ fn simplify_cond_core(cfg: &mut GraphBuilder, condition: &Condition<ValueId>, at
                                 return Condition::False.neg_if(condition.is_neq())
                             }
                             if all_equal(possible_condition.iter()) {
-                                return possible_condition[0].clone()
+                                return possible_condition[0].clone().neg_if(condition.is_neq())
                             }
                             return condition
                         }
@@ -1428,17 +1428,17 @@ pub fn simplify_instr(cfg: &mut GraphBuilder, mut i: OptInstr, opt: InstrSimplOp
 
                 if let Some(def_b) = cfg.get_defined_at(b) {
                     if OptOp::DigitSum == def_b.op && a == def_b.inputs[0] {
-                        // GCD(DigitSum(a), a)
+                        // GCD(a, DigitSum(a))
                         // no optimization, but we can significantly limit range
                         // in any case, we limit to b range, because 0 is correlated
                         // if range of a is in [0..190], we know the output can only be [1, 2, 3, 4, 5, 6, 7, 8, 9, 12]
                         //                  in [0..47], it excludes 12
+                        let range_start = if ranges[0].contains(&0) { 0 } else { 1 };
+                        narrow_out_range!(range_start..=*ranges[1].end());
                         if *ranges[0].start() >= -47 && *ranges[0].end() <= 47 {
-                            out_range = Some(intersect_range(0..=9, &ranges[1]));
+                            narrow_out_range!(0..=9);
                         } else if *ranges[0].start() >= 190 && *ranges[0].end() <= 190 {
-                            out_range = Some(intersect_range(0..=12, &ranges[1]))
-                        } else {
-                            out_range = Some(ranges[1].clone());
+                            narrow_out_range!(0..=12);
                         }
                     }
                 }
