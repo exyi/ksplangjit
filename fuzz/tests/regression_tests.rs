@@ -1062,3 +1062,9 @@ fn fuzz_pow_eq_propagation() {
     let ops = vec![ DigitSum, DigitSum, DigitSum, DigitSum, LSwap, Gcd2, DigitSum, DigitSum, DigitSum, LenSum, Universal, DigitSum, Increment, LenSum ];
     verify_repro_const(ops, vec![0], vec![3]);
 }
+
+#[test]
+fn fuzz_simpl_cond_pow_overflow() {
+    let ops = vec![ DigitSum, DigitSum, Praise, DigitSum, Remainder, DigitSum, LSwap, Modulo, LenSum, DigitSum, DigitSum, DigitSum, LenSum, Universal, DigitSum, DigitSum, DigitSum, LenSum, Universal, Remainder, BranchIfZero ];
+    verify_repro_const(ops, vec![0], vec![504604270176261373]);
+}

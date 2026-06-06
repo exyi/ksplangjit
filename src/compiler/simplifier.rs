@@ -385,9 +385,10 @@ fn simplify_cond_core(cfg: &mut GraphBuilder, condition: &Condition<ValueId>, at
                     if matches!(def.op, OptOp::Mul) && all_equal(def.inputs.iter()) { // pow
                         let base = def.inputs[0];
                         let exp = def.inputs.len() as u32;
-                        let root = if exp == 2 { ac.isqrt() } else { (ac as f64).powi(exp as i32) as i64 };
+                        let root = if exp == 2 { ac.isqrt() } else { (ac as f64).powf(1.0 / exp as f64).round() as i64 };
                         let lower = root.pow(exp);
-                        // let upper = (root + 1).checked_pow(exp);
+                        let upper = (root + 1).checked_pow(exp);
+                        debug_assert!(upper.is_none_or(|x| x > ac));
                         match &condition {
                             Condition::Eq(_, _) if lower == ac =>
                                 return Condition::Eq(cfg.store_constant(root), base),
