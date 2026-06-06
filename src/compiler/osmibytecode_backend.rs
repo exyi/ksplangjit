@@ -924,6 +924,7 @@ impl<'a> Compiler<'a> {
                 deopt.extend(this.mk_materialization(val, reg))
             }
         );
+        let cond_regs = cond.regs();
         let mut deopt_const: i64 = 0;
         for &value in &instr.inputs {
             if let Some(c) = self.g.get_constant(value) {
@@ -935,6 +936,7 @@ impl<'a> Compiler<'a> {
                     } else {
                         let reg = self.materialize_value_(value);
                         self.program.push(OsmibyteOp::KsplangOpsIncrementVar(reg, 1));
+                        self.temp_regs.release(reg);
                         continue;
                     }
                 } else if let Ok(c_i16) = c.try_into() {
@@ -951,6 +953,9 @@ impl<'a> Compiler<'a> {
             } else {
                 self.program.push(OsmibyteOp::KsplangOpsIncrementCondVar(cond.clone(), reg, 1, 0));
                 deopt.push(OsmibyteOp::KsplangOpsIncrementCondVar(cond.clone(), reg, -1, 0));
+            }
+            if !cond_regs.contains(&reg) {
+                self.temp_regs.release(reg);
             }
         }
 
