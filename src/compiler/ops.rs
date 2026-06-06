@@ -327,7 +327,7 @@ impl<TVal: Clone + PartialEq + Eq + Display + Debug> OptOp<TVal> {
             OptOp::StackSwap => 2..=2,
             OptOp::StackRead => 1..=1,
             OptOp::Universal => 2..=3,
-            OptOp::KsplangOpsIncrement(_) => 1..=usize::MAX,
+            OptOp::KsplangOpsIncrement(_) => 0..=usize::MAX,
         }
     }
 

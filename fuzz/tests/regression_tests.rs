@@ -1038,3 +1038,9 @@ fn fuzz_digit_sum_not_nine_divisibility_simplification() {
     let ops = vec![ DigitSum, DigitSum, LSwap, Modulo, Increment, DigitSum, DigitSum, DigitSum, Increment, LenSum ];
     verify_repro_const(ops, vec![24672], vec![-888677073002233601]);
 }
+
+#[test]
+fn fuzz_obc_ksplangopsincrement_simplification_arity_crash() {
+    let ops = vec![ Max, DigitSum, DigitSum, Praise, DigitSum, LSwap, Funkcia, DigitSum, DigitSum, LSwap, DigitSum, Increment, BulkXor, Jump, Increment, BulkXor, DigitSum, Jump, Increment, BulkXor, Jump, Increment, GcdN, BranchIfZero ];
+    verify_repro_const(ops, vec![0], vec![72057595581374557, 1670183915683841]);
+}

@@ -1620,9 +1620,6 @@ pub fn simplify_instr(cfg: &mut GraphBuilder, mut i: OptInstr, opt: InstrSimplOp
             OptOp::KsplangOpsIncrement(Condition::True) if i.inputs[0].is_constant() => {
                 let c = cfg.get_constant_(i.inputs[0]);
                 if try_increment_block_opcount(cfg.block_mut_(i.id.block_id()), c) {
-                    if i.inputs.len() == 1 {
-                        return (i.clone().with_op(OptOp::Nop, &[], OpEffect::None), None);
-                    }
                     i.inputs.remove(0);
                     continue;
                 }
