@@ -1321,6 +1321,10 @@ pub fn simplify_instr(cfg: &mut GraphBuilder, mut i: OptInstr, opt: InstrSimplOp
                 return result_const!(0);
             }
 
+            OptOp::Mod if abs_range(&ranges[0]).end() < abs_range(&ranges[1]).start() => {
+                return result_val!(i.inputs[0]);
+            }
+
             OptOp::ModEuclid if *ranges[0].start() >= 0 => {
                 i.op = OptOp::Mod;
                 continue;

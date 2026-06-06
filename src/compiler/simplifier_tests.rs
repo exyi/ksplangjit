@@ -27,6 +27,15 @@ fn test_mod_simplification() {
 }
 
 #[test]
+fn test_mod_with_input_range_below_modulus_is_input() {
+    let (mut g, [a, b]) = create_graph([0..=9, 32..=75]);
+
+    let m = g.push_instr(OptOp::Mod, &[a, b], false, None, None).0;
+
+    assert_eq!(m, a);
+}
+
+#[test]
 fn test_ksplang_ops_increment_same_condition_merge() {
     let (mut g, [a, b, c]) = create_graph([0..=100, 0..=100, 0..=100]);
     let cond = Condition::Eq(a, b);

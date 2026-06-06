@@ -2099,7 +2099,7 @@ mod lowering_tests {
 
     #[test]
     fn mod_bitshift_opt_no() {
-        let program = compile_binary(OptOp::Mod, -5..=5, 8);
+        let program = compile_binary(OptOp::Mod, -50..=50, 8);
         assert!(program.iter().any(|op| matches!(op, OsmibyteOp::ModConst(_, _, 8))));
         assert!(!program.iter().any(|op| matches!(op, OsmibyteOp::AndConst(_, _, _))));
     }
