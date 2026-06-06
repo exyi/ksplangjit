@@ -540,7 +540,10 @@ impl<TVal: Clone + PartialEq + Eq + Display + Debug> OptOp<TVal> {
                 }
             }
             OptOp::ShiftR => None, // TODO
-            OptOp::BinNot => None, // TODO
+            OptOp::BinNot => {
+                let (s, e) = inputs[0].clone().into_inner();
+                Some(cmp::min(!s, !e)..=cmp::max(!s, !e))
+            },
             OptOp::BoolNot => if *inputs[0].start() > 0 || *inputs[0].end() < 0 {
                 Some(0..=0)
             } else if *inputs[0].start() == 0 && *inputs[0].end() == 0 {
