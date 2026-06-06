@@ -1,10 +1,7 @@
-use core::fmt;
-use std::{borrow::Borrow, cmp, collections::{BTreeMap, BTreeSet, BinaryHeap}, mem};
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
-use smallvec::{SmallVec, smallvec};
+use std::{borrow::Borrow, collections::BinaryHeap};
 
-use crate::compiler::{analyzer::{dataflow, reverse_postorder}, cfg::{BasicBlock, GraphBuilder}, ops::{BlockId, InstrId, OpEffect, OptInstr, OptOp, ValueId}, osmibytecode::{Condition, DeoptInfo, OsmibyteArrayOp, OsmibyteOp, OsmibytecodeBlock, RegId}, utils::{AssertInto, SaturatingInto, abs_range}};
-use crate::vm::OperationError;
+use super::prelude::*;
+use crate::compiler::{analyzer::{dataflow, reverse_postorder}, osmibytecode::{DeoptInfo, OsmibyteArrayOp, OsmibytecodeBlock, RegId}};
 
 #[allow(dead_code)]
 #[derive(Clone, Debug)]
@@ -2105,10 +2102,10 @@ mod lowering_tests {
     #[test]
     fn mod_euclid_bitshift_opt() {
         let program = compile_binary(OptOp::ModEuclid, -10..=10, 8);
-        assert!(matches!(&program[..], [
+        assert_matches!(&program[..], [
             OsmibyteOp::AndConst(_, _, 7),
             OsmibyteOp::AddConst(_, _, 2),
-        ]));
+        ]);
     }
 
     #[test]
@@ -2120,7 +2117,7 @@ mod lowering_tests {
         g.push_instr(OptOp::Add, &[ValueId::C_TWO, second], false, None, None);
 
         let block = OsmibytecodeBlock::from_cfg(&g);
-        assert!(matches!(&block.program[..], [OsmibyteOp::DigitSumTwice(_, _), OsmibyteOp::AddConst(_, _, 2) ]), "{block}\n{:?}", block.program);
+        assert_matches!(&block.program[..], [OsmibyteOp::DigitSumTwice(_, _), OsmibyteOp::AddConst(_, _, 2) ], "{block}");
     }
 
     #[test]
@@ -2133,7 +2130,7 @@ mod lowering_tests {
         g.push_instr(OptOp::Add, &[ValueId::C_TWO, lensum], false, None, None);
 
         let block = OsmibytecodeBlock::from_cfg(&g);
-        assert!(matches!(&block.program[..], [OsmibyteOp::DigitSumDigitSumLensum(_, _), OsmibyteOp::AddConst(_, _, 2) ]), "{block}\n{:?}", block.program);
+        assert_matches!(&block.program[..], [OsmibyteOp::DigitSumDigitSumLensum(_, _), OsmibyteOp::AddConst(_, _, 2) ], "{block}\n");
     }
 
     #[test]
@@ -2144,7 +2141,7 @@ mod lowering_tests {
         g.push_instr(OptOp::Add, &[ValueId::C_ONE, div_out], false, None, None);
 
         let block = OsmibytecodeBlock::from_cfg(&g);
-        assert!(matches!(&block.program[..], [OsmibyteOp::MedianCursed2(_, _) ]), "{block}\n{:?}", block.program);
+        assert_matches!(&block.program[..], [OsmibyteOp::MedianCursed2(_, _) ], "{block}\n");
     }
 
     #[test]
@@ -2156,7 +2153,7 @@ mod lowering_tests {
         g.push_instr(OptOp::DigitSum, &[div_out], false, None, None);
 
         let block = OsmibytecodeBlock::from_cfg(&g);
-        assert!(matches!(&block.program[..], [OsmibyteOp::DivConst(_, _, 2), OsmibyteOp::AddConst(_, _, 1), OsmibyteOp::DigitSum(_, _) ]), "{block}\n{:?}", block.program);
+        assert_matches!(&block.program[..], [OsmibyteOp::DivConst(_, _, 2), OsmibyteOp::AddConst(_, _, 1), OsmibyteOp::DigitSum(_, _) ], "{block}\n");
     }
     #[test]
     fn fusing_median2_no2() {
@@ -2170,7 +2167,7 @@ mod lowering_tests {
         g.clean_poped_values();
 
         let block = OsmibytecodeBlock::from_cfg(&g);
-        assert!(matches!(&block.program[..], [OsmibyteOp::DivConst(_, _, 2), OsmibyteOp::AddConst(_, _, 3) ]), "{block}\n{:?}", block.program);
+        assert_matches!(&block.program[..], [OsmibyteOp::DivConst(_, _, 2), OsmibyteOp::AddConst(_, _, 3) ], "{block}\n");
     }
 
     #[test]
@@ -2363,9 +2360,9 @@ mod register_alloc_tests {
         let allocation = allocate_registers(&g, 2, true);
         println!("{allocation}");
 
-        assert!(matches!(allocation.location(phi), Some(ValueLocation::Register(_))));
-        assert!(matches!(allocation.location(friend), Some(ValueLocation::Register(_))));
-        assert!(matches!(allocation.location(block_local), Some(ValueLocation::Register(_))));
+        assert_matches!(allocation.location(phi), Some(ValueLocation::Register(_)));
+        assert_matches!(allocation.location(friend), Some(ValueLocation::Register(_)));
+        assert_matches!(allocation.location(block_local), Some(ValueLocation::Register(_)));
 
         // With phi-friend merging, phi and friend SHOULD share a register
         // since they're phi-friends with non-overlapping lifetimes
@@ -2483,9 +2480,9 @@ mod register_alloc_tests {
         let val1_location = allocation.location(val1);
         let val2_location = allocation.location(val2);
 
-        assert!(matches!(phi_location, Some(ValueLocation::Register(_))));
-        assert!(matches!(val1_location, Some(ValueLocation::Register(_))));
-        assert!(matches!(val2_location, Some(ValueLocation::Register(_))));
+        assert_matches!(phi_location, Some(ValueLocation::Register(_)));
+        assert_matches!(val1_location, Some(ValueLocation::Register(_)));
+        assert_matches!(val2_location, Some(ValueLocation::Register(_)));
 
         assert_ne!(val2_location, val1_location);
         assert!(val2_location == phi_location || val1_location == phi_location);

@@ -960,14 +960,14 @@ fn fuzz_somehow_runs_into_unreachable() {
     verify_repro_const(ops, vec![-534704550355, 0], vec![-7384914558567055361, -12802, -2306135479306810111]);
 }
 
-#[test] // TODO: 
+#[test]
 fn fuzz_too_much_mul_add_expansion_again() {
     let ops = vec![ DigitSum, DigitSum, DigitSum, DigitSum, Swap, Swap, Modulo, DigitSum, Increment, DigitSum, DigitSum, LenSum, Universal, DigitSum, Increment, Increment, DigitSum, DigitSum, Increment, DigitSum, DigitSum, LenSum, Universal, DigitSum, Increment, DigitSum, DigitSum, Increment, LenSum, DigitSum, DigitSum, LenSum, Universal, DigitSum, Increment, Increment, DigitSum, LenSum, DigitSum, LenSum, Universal, DigitSum, DigitSum, LenSum, DigitSum, LenSum, DigitSum, LenSum, Universal, DigitSum, Increment, Increment, DigitSum, LenSum, DigitSum, LenSum, Universal, DigitSum, Increment, DigitSum, Increment, LenSum, DigitSum, LenSum, Universal, DigitSum, Increment, Increment, DigitSum, LenSum, DigitSum, LenSum, Call ];
     verify_repro_const(ops, vec![4453888], vec![-499917969032220825]);
 }
 
-#[test] // TODO: 
-fn fuzz_nested_calling_add_mul_expansion_which_doesnt_produce_too_much_code_as_VN_handles_it() {
+#[test]
+fn fuzz_nested_calling_add_mul_expansion_which_doesnt_produce_too_much_code_as_vnum_handles_it() {
     let ops = vec![ DigitSum, DigitSum, Increment, DigitSum, DigitSum, LenSum, DigitSum, Increment, DigitSum, DigitSum, BulkXor, BulkXor, TetrationNumIters, DigitSum, Increment, Increment, Increment, DigitSum, DigitSum, Remainder, Universal, Increment, DigitSum, Increment, DigitSum, DigitSum, Remainder, Universal, Increment, DigitSum, Increment, Increment, DigitSum, Increment, DigitSum, DigitSum, LenSum, Universal, Increment, DigitSum, Increment, DigitSum, DigitSum, LenSum, LenSum, Increment, Modulo, Increment, Increment, Increment, DigitSum, LenSum, Universal, DigitSum, DigitSum, Increment, Increment, Increment, Increment, Increment, Increment, DigitSum, DigitSum, LenSum, Goto, Jump, Qeq, Universal, Pop, Max ];
     verify_repro(ops, vec![9144347934470956800, 2443202762612139874, -1736155355194360129, 0]);
 }

@@ -1,13 +1,6 @@
-use num_traits::sign;
-use smallvec::{SmallVec, ToSmallVec, smallvec};
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 
-use std::{collections::{BTreeMap, BTreeSet}};
-
-use crate::compiler::{
-    cfg::{BasicBlock, GraphBuilder}, ops::{BeforeOrAfter, BlockId, InstrId, OpEffect, OptInstr, OptOp, ValueId}, osmibytecode::Condition, range_ops::IRange, utils::{Annotations, FULL_RANGE, RemoveAll, all_equal, union_range}
-};
-use crate::vm::OperationError;
+use super::prelude::*;
+use super::{ops::BeforeOrAfter, utils::{Annotations, RemoveAll, all_equal}};
 
 /// Hoists common instructions from following blocks of the specified predecessor block.
 /// Returns true if any hoisting was performed.
@@ -215,7 +208,7 @@ pub fn hoist_down(g: &mut GraphBuilder, target: BlockId) -> bool {
         if g.block_(jump_id.block_id()).outgoing_jumps.len() != 1 {
             return false;
         }
-        assert!(matches!(g.get_instruction_(jump_id).op, OptOp::Jump(Condition::True, _)));
+        assert_matches!(g.get_instruction_(jump_id).op, OptOp::Jump(Condition::True, _));
     }
 
     let mut candidates = find_down_hoist_candidates(g, target);

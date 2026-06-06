@@ -1,7 +1,7 @@
-use crate::compiler::{
-    cfg::GraphBuilder, ops::{BlockId, InstrId, OpEffect, OptInstr, OptOp, ValueId}, osmibytecode::Condition, pattern::OptOptPattern, simplifier::{INSTR_SIMPL_DEFAULT, InstrSimplOpt, simplify_cond, simplify_instr}, utils::FULL_RANGE
+use super::prelude::*;
+use super::{
+    pattern::OptOptPattern as P, simplifier::{INSTR_SIMPL_DEFAULT, simplify_cond, simplify_instr}
 };
-use std::ops::RangeInclusive;
 const END_INSTR: InstrId = InstrId(BlockId(0), u32::MAX);
 
 fn create_graph<const N: usize>(ranges: [RangeInclusive<i64>; N]) -> (GraphBuilder, [ValueId; N]) {
@@ -509,7 +509,7 @@ fn test_add_mul_equivalence() {
     g.clean_poped_values();
     println!("{g}");
 
-    let pattern = OptOptPattern::op4(OptOp::Add, 1, a, b, OptOptPattern::op2(OptOp::Mul, a, b));
+    let pattern = P::op4(OptOp::Add, 1, a, b, P::op2(OptOp::Mul, a, b));
     assert!(pattern.try_match(&g, &[mul]).is_ok());
     assert_eq!(2, g.current_block_ref().instructions.len());
 }
@@ -592,7 +592,7 @@ fn test_cursed_div_to_normal_div() {
         g.clean_poped_values();
 
         println!("Tested {b} / {divisor}:\n{g}");
-        let pattern = OptOptPattern::op2(OptOp::Div, b, divisor);
+        let pattern = P::op2(OptOp::Div, b, divisor);
         assert!(pattern.try_match(&g, &[div]).is_ok());
         assert_eq!(1, g.current_block_ref().instructions.len());
     }
@@ -613,10 +613,10 @@ fn test_add_sub_simplifications() {
 
     println!("results: a+c = {add_a_c}, 5-a {sub_five_a}, a+b-5 = {add_a_b_neg_five}, -b = {b_sub_ab}\n{g}");
 
-    assert!(OptOptPattern::op2(OptOp::Add, a, c).try_match(&g, &[add_a_c]).is_ok());
-    assert!(OptOptPattern::op3(OptOp::Add, a, b, -5).try_match(&g, &[add_a_b_neg_five]).is_ok());
+    assert!(P::op2(OptOp::Add, a, c).try_match(&g, &[add_a_c]).is_ok());
+    assert!(P::op3(OptOp::Add, a, b, -5).try_match(&g, &[add_a_b_neg_five]).is_ok());
     assert_eq!(sub_sub_b, b);
-    assert!(OptOptPattern::op2(OptOp::Sub, 0, a).try_match(&g, &[b_sub_ab]).is_ok());
+    assert!(P::op2(OptOp::Sub, 0, a).try_match(&g, &[b_sub_ab]).is_ok());
 }
 
 #[test]
@@ -652,8 +652,8 @@ fn test_cs_const_offset() {
     let b_cs = g.value_numbering(OptOp::DigitSum, &[b], None, None);
     let c_cs = g.value_numbering(OptOp::DigitSum, &[c], None, None);
 
-    assert!(OptOptPattern::op2(OptOp::Add, a, -9).try_match(&g, &[a_cs]).is_ok());
-    assert!(OptOptPattern::op2(OptOp::Add, b, -1000_107).try_match(&g, &[b_cs]).is_ok());
-    assert!(OptOptPattern::op2(OptOp::Sub, -117, c).try_match(&g, &[c_cs]).is_ok());
+    assert!(P::op2(OptOp::Add, a, -9).try_match(&g, &[a_cs]).is_ok());
+    assert!(P::op2(OptOp::Add, b, -1000_107).try_match(&g, &[b_cs]).is_ok());
+    assert!(P::op2(OptOp::Sub, -117, c).try_match(&g, &[c_cs]).is_ok());
 }
 

@@ -1,9 +1,7 @@
-use core::fmt;
 use std::{fmt::Debug};
-use arrayvec::ArrayVec;
-use smallvec::SmallVec;
 
-use crate::compiler::{cfg::GraphBuilder, osmibytecode_backend::{ALLOCATABLE_REG_COUNT, Compiler, allocate_registers}};
+use super::prelude::*;
+use super::{osmibytecode_backend::{ALLOCATABLE_REG_COUNT, Compiler, allocate_registers}};
 
 
 #[repr(transparent)]

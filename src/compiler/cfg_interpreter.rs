@@ -1,13 +1,4 @@
-use rustc_hash::{FxHashMap as HashMap};
-
-use smallvec::SmallVec;
-
-use crate::compiler::{
-    cfg::GraphBuilder,
-    ops::{BlockId, InstrId, OpEffect, OptInstr, OptOp, ValueId},
-    osmibytecode::Condition,
-};
-use crate::vm::OperationError;
+use super::prelude::*;
 
 type ValMap = HashMap<ValueId, i64>;
 
@@ -196,12 +187,12 @@ pub fn interpret_cfg(
                     save_val!(instr.out, value);
                 }
                 Err(Some(err)) => {
-                    debug_assert!(matches!(instr.effect, OpEffect::MayFail | OpEffect::MayDeopt), "Instruction was not supposed to deopt/error({err:?}): {instr}");
+                    debug_assert_matches!(instr.effect, OpEffect::MayFail | OpEffect::MayDeopt, "Instruction was not supposed to deopt/error({err:?}): {instr}");
                     error = Some((err, instr.id));
                     break 'block;
                 }
                 Err(None) => {
-                    debug_assert!(matches!(instr.effect, OpEffect::MayDeopt), "Instruction was not supposed to deopt: {instr}");
+                    debug_assert_matches!(instr.effect, OpEffect::MayDeopt, "Instruction was not supposed to deopt: {instr}");
                     deoptimized = Some(instr.id);
                     break 'block;
                 }
@@ -323,7 +314,7 @@ fn build_stack_from_checkpoint<'a>(
     values: &'a ValMap,
     checkpoint_instr: &'a OptInstr,
 ) -> impl Iterator<Item = i64> + 'a {
-    assert!(matches!(checkpoint_instr.op, OptOp::Checkpoint));
+    assert_matches!(checkpoint_instr.op, OptOp::Checkpoint);
     assert!(!checkpoint_instr.inputs.is_empty(), "Checkpoint instruction must have at least one input (stack depth)");
     
     // First input is stack depth

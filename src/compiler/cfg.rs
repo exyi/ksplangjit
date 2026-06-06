@@ -1,12 +1,6 @@
-use core::{fmt};
 use std::{
-    borrow::Cow, cmp, collections::{BTreeMap, BTreeSet, hash_map::Entry}, ops::{Range, RangeInclusive}
+    collections::hash_map::Entry, ops::Range
 };
-use rustc_hash::{FxHashMap as HashMap};
-
-use arrayvec::ArrayVec;
-use num_integer::Integer;
-use smallvec::{SmallVec, ToSmallVec, smallvec};
 
 #[cfg(debug_assertions)]
 use std::collections::{BTreeMap as Map, btree_map::Entry as MapEntry};
@@ -15,7 +9,8 @@ use rustc_hash::{FxHashMap as Map};
 #[cfg(not(debug_assertions))]
 use std::collections::{hash_map::Entry as MapEntry};
 
-use crate::{compiler::{analyzer::{self}, config::{JitConfig, get_config}, ops::{BeforeOrAfter, BlockId, InstrId, OpEffect, OptInstr, OptOp, ValueId, ValueInfo}, osmibytecode::Condition, range_ops::IRange, simplifier::{self, simplify_cond}, utils::{Annotations, FULL_RANGE, NumFmt, RangeFmt, abs_range, fmt_callback_hack, intersect_range, union_range}}, vm::OperationError};
+use super::prelude::*;
+use super::{config::{JitConfig, get_config}, ops::{BeforeOrAfter}, simplifier::simplify_cond, utils::{Annotations, NumFmt, RangeFmt}};
 
 // #[derive(Debug, Clone, PartialEq)]
 // struct DeoptInfo<TReg> {
@@ -83,7 +78,7 @@ impl BasicBlock {
             self.outgoing_jumps.push((id, *target));
         }
         let entry = self.instructions.entry(id.1);
-        assert!(matches!(entry, std::collections::btree_map::Entry::Vacant(_)), "Instruction ID already exists in block: {:?}", id);
+        assert_matches!(entry, std::collections::btree_map::Entry::Vacant(_), "Instruction ID {id} already exists in block");
         entry.or_insert(instr)
     }
 
@@ -519,7 +514,7 @@ impl GraphBuilder {
             assumptions: Vec::new(),
         };
         let entry = self.values.entry(id);
-        assert!(matches!(entry, MapEntry::Vacant(_)), "Value ID already exists: {:?}", entry);
+        assert_matches!(entry, MapEntry::Vacant(_), "Value ID {id} already exists");
         entry.or_insert(info)
     }
 
@@ -1624,7 +1619,7 @@ impl fmt::Display for GraphvizCfg<'_> {
         writeln!(f, "    node [shape=box,fontname=\"monospace\"];")?;
         for bid in &block_order {
             let block = g.block_(*bid);
-            let label = dot_escape(&fmt_callback_hack(|f| g.fmt_block(f, block)));
+            let label = dot_escape(&format!("{}", fmt::from_fn(|f| g.fmt_block(f, block))));
             writeln!(f, "    bb{} [label=\"{}\"];", bid.0, label)?;
         }
         for bid in &block_order {

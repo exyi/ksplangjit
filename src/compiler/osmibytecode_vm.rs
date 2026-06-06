@@ -1,8 +1,9 @@
-use std::{cmp, fmt, hint::select_unpredictable, ops::{Index, IndexMut}};
+use std::{hint::select_unpredictable, ops::{Index, IndexMut}};
 
-use num_integer::Integer;
 
-use crate::{compiler::{osmibytecode::{Condition, OsmibyteArrayOp, OsmibyteOp, OsmibytecodeBlock, RegId}, utils::{SaturatingInto, sort_tuple}}, digit_sum, funkcia, vm::{self, OperationError}};
+use super::prelude::*;
+use super::{osmibytecode::{OsmibyteArrayOp, OsmibytecodeBlock, RegId}, utils::sort_tuple};
+use crate::{digit_sum, funkcia, vm::{self, OperationError}};
 
 
 
@@ -175,9 +176,6 @@ fn eval_cond(regs: &RegFile, cond: Condition<RegId>) -> bool {
     }
 }
 
-#[cold]
-fn maybe_cold() { } // not sure if this even works
-
 pub fn interpret_block<const DEOPT_ON_ERROR: bool>(prog: &OsmibytecodeBlock, stack: &mut Vec<i64>, regs: &mut RegFile) -> Result<RunBlockResult, OperationError> {
     if stack.len() <= prog.stack_values_required as usize {
         return Ok(RunBlockResult { continue_ip: prog.start_ip, bytecode_interpreted: 0, ksplang_interpreted: 0, exit_point: ExitPointId::Start })
@@ -194,13 +192,20 @@ pub fn interpret_block<const DEOPT_ON_ERROR: bool>(prog: &OsmibytecodeBlock, sta
     let mut simply_done: Option<usize> = None;
     let mut exit_point = None;
 
+    macro_rules! deopt {
+        () => { {
+            hint::cold_path();
+            deopt_auto = true;
+            break;
+        } };
+    }
     macro_rules! deopt_or_error {
         ($err:expr) => {
             if DEOPT_ON_ERROR {
-                maybe_cold();
+                hint::cold_path();
                 deopt_auto = true; break;
             } else {
-                maybe_cold();
+                hint::cold_path();
                 return Err($err)
             }
         };
@@ -434,8 +439,7 @@ pub fn interpret_block<const DEOPT_ON_ERROR: bool>(prog: &OsmibytecodeBlock, sta
                             }
                         }
                         4 | 5 => {
-                            deopt_auto = true;
-                            break;
+                            deopt!()
                         }
                         other => {
                             deopt_or_error!(OperationError::InvalidArgumentForUniversal { argument: other })
@@ -451,8 +455,7 @@ pub fn interpret_block<const DEOPT_ON_ERROR: bool>(prog: &OsmibytecodeBlock, sta
                         },
                         5 => regs[out] = value.signum(),
                         0..=3 => {
-                            deopt_auto = true;
-                            break;
+                            deopt!()
                         }
                         other => {
                             deopt_or_error!(OperationError::InvalidArgumentForUniversal { argument: other })
@@ -519,7 +522,7 @@ pub fn interpret_block<const DEOPT_ON_ERROR: bool>(prog: &OsmibytecodeBlock, sta
                 OsmibyteOp::StackSwap(out, ix, val, depth) => {
                     let ix = regs[ix];
                     if ix < 0 || ix + *depth as i64 >= stack.len() as i64 {
-                        maybe_cold(); deopt_auto = true; break; // we may be missing few elements on the top -> only deopt is safe
+                        deopt!() // we may be missing few elements on the top -> only deopt is safe
                     }
                     let val = regs[val];
                     regs[out] = stack[ix as usize];
@@ -528,14 +531,14 @@ pub fn interpret_block<const DEOPT_ON_ERROR: bool>(prog: &OsmibytecodeBlock, sta
                 OsmibyteOp::StackWrite(ix, val, depth) => {
                     let ix = regs[ix];
                     if ix < 0 || ix + *depth as i64 >= stack.len() as i64 {
-                        maybe_cold(); deopt_auto = true; break;
+                        deopt!()
                     }
                     stack[ix as usize] = regs[val];
                 },
                 OsmibyteOp::StackRead(out, ix, depth) => {
                     let ix = regs[ix];
                     if ix < 0 || ix + *depth as i64 >= stack.len() as i64 {
-                        maybe_cold(); deopt_auto = true; break;
+                        deopt!()
                     }
                     regs[out] = stack[ix as usize];
                 },
@@ -563,7 +566,7 @@ pub fn interpret_block<const DEOPT_ON_ERROR: bool>(prog: &OsmibytecodeBlock, sta
                 },
                 OsmibyteOp::DeoptAssert(condition, di) => {
                     if !eval_cond(regs, condition.clone()) {
-                        maybe_cold();
+                        hint::cold_path();
                         deopt_info = Some(*di as u32);
                         break;
                     }

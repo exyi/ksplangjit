@@ -1,10 +1,4 @@
-use std::cmp;
-
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
-
-use smallvec::SmallVec;
-
-use crate::compiler::{cfg::{BasicBlock, GraphBuilder}, ops::{BlockId, InstrId, ValueId}, osmibytecode::Condition};
+use super::prelude::*;
 
 /// Simplify b assuming a is true
 pub fn cond_implies(_cfg: &GraphBuilder, assume: &Condition<ValueId>, b: &Condition<ValueId>, _at: InstrId) -> Option<Condition<ValueId>> {

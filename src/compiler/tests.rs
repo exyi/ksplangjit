@@ -1,9 +1,9 @@
 #![allow(dead_code)]
-use std::ops::RangeInclusive;
-
 use rand::{Rng, SeedableRng};
 
-use crate::{compiler::{cfg::GraphBuilder, config::get_config, ops::{BlockId, OptOp, ValueId}, osmibytecode::{Condition, OsmibyteOp, OsmibytecodeBlock, RegId}, pattern::OptOptPattern, precompiler::{NoTrace, Precompiler}, test_utils, utils::FULL_RANGE}, parser::{self, parse_program}, vm::{self, ActualTracer, NoStats, RunError, RunResult, VMOptions, run_with_stats}};
+use super::prelude::*;
+use super::{config::get_config, osmibytecode::{OsmibytecodeBlock, RegId}, pattern::OptOptPattern as P, precompiler::{NoTrace, Precompiler}, test_utils};
+use crate::{parser::{self, parse_program}, vm::{self, ActualTracer, NoStats, RunError, RunResult, VMOptions, run_with_stats}};
 
 const PUSH_0: &str = "CS CS lensum CS funkcia";
 const PUSH_1: &str = "CS CS lensum CS funkcia ++";
@@ -291,7 +291,7 @@ fn test_dup1_limited_ranges() {
     test_dup(VZORAKOVA_DUP, i64::MIN..=i64::MIN + 1);
 }
 
-fn assert_pattern(g: &GraphBuilder, v: ValueId, p: OptOptPattern) {
+fn assert_pattern(g: &GraphBuilder, v: ValueId, p: P) {
     if p.try_match(g, &[v]).is_ok() {
         return
     }
@@ -326,7 +326,7 @@ fn test_j_increment() {
 fn test_dec_positive() {
     const DEC_POSITIVE: &str = "CS CS lensum CS funkcia ++ CS u";
     let (g, [x]) = precompile(DEC_POSITIVE, None, [1..=i64::MAX]);
-    assert_pattern(&g, g.stack.stack[0], OptOptPattern::op(OptOp::Add, [ (-1).into(), x.into() ]));
+    assert_pattern(&g, g.stack.stack[0], P::op(OptOp::Add, [ (-1).into(), x.into() ]));
     assert_size(&g, 1..=1, 3..=3);
     assert_eq!(1, g.stack.stack.len());
 }
@@ -335,7 +335,7 @@ fn test_dec_positive() {
 fn test_dec() {
     let p = "CS CS lensum CS funkcia CS ++ CS qeq u";
     let (g, [x]) = precompile(p, None, [1..=i64::MAX]);
-    assert_pattern(&g, g.stack.stack[0], OptOptPattern::op(OptOp::Add, [ (-1).into(), x.into() ]));
+    assert_pattern(&g, g.stack.stack[0], P::op(OptOp::Add, [ (-1).into(), x.into() ]));
     assert_size(&g, 1..=1, 3..=3);
     assert_eq!(1, g.stack.stack.len());
 }
@@ -344,7 +344,7 @@ fn test_dec() {
 fn test_zero_not_positive() {
     let p = "CS CS lensum CS funkcia ++ CS bulkxor";
     let (g, [x]) = precompile(p, None, [FULL_RANGE]);
-    assert_pattern(&g, g.stack.stack[0], OptOptPattern::op(OptOp::Select(Condition::Geq(0.into(), x.into())), [ 1.into(), 0.into() ]));
+    assert_pattern(&g, g.stack.stack[0], P::op(OptOp::Select(Condition::Geq(0.into(), x.into())), [ 1.into(), 0.into() ]));
     assert_size(&g, 1..=1, 3..=3);
     assert_eq!(1, g.stack.stack.len());
 }
@@ -353,7 +353,7 @@ fn test_zero_not_positive() {
 fn test_zero_not() {
     let p = "CS CS lensum ++ CS lensum ++ ++ ++ u CS CS lensum CS funkcia CS ++ u CS j ++ CS bulkxor";
     let (g, [x]) = precompile(p, None, [FULL_RANGE]);
-    assert_pattern(&g, g.stack.stack[0], OptOptPattern::op(OptOp::Select(Condition::Eq(0i64.into(), x.into())), [ 1.into(), 0.into() ]));
+    assert_pattern(&g, g.stack.stack[0], P::op(OptOp::Select(Condition::Eq(0i64.into(), x.into())), [ 1.into(), 0.into() ]));
     assert_size(&g, 1..=1, 4..=4);
     assert_eq!(1, g.stack.stack.len());
 }
@@ -362,9 +362,9 @@ fn test_zero_not() {
 fn test_yoink_destructive() {
     let p = "CS CS CS lensum CS funkcia ++ CS ++ lroll swap";
     let (g, [x]) = precompile(p, None, [FULL_RANGE]);
-    assert_pattern(&g, g.stack.stack[0], OptOptPattern::op(OptOp::StackSwap, [
+    assert_pattern(&g, g.stack.stack[0], P::op(OptOp::StackSwap, [
         x.into(),
-        OptOptPattern::any()
+        P::any()
     ]));
     assert_size(&g, 1..=1, 3..=6);
     assert_eq!(1, g.stack.stack.len());
@@ -380,7 +380,7 @@ fn test_bitnot_compiles() {
     for v in g.values.values() {
         println!("{:?}", v);
     }
-    assert_pattern(&g, g.stack.stack[0], OptOptPattern::op1(OptOp::BinNot, x));
+    assert_pattern(&g, g.stack.stack[0], P::op1(OptOp::BinNot, x));
     assert_size(&g, 1..=1, 3..=3);
     assert_eq!(1, g.stack.stack.len());
 }
@@ -415,7 +415,7 @@ fn test_pop4() {
 fn test_sub() {
     let p = "CS CS lensum CS funkcia ++ CS CS % qeq CS CS lensum CS funkcia u";
     let (g, [a, b]) = precompile(p, None, [FULL_RANGE, i64::MIN + 1..=i64::MAX]);
-    assert_pattern(&g, g.stack.stack[0], OptOptPattern::op2(OptOp::Sub, a, b));
+    assert_pattern(&g, g.stack.stack[0], P::op2(OptOp::Sub, a, b));
     assert_size(&g, 1..=1, 3..=3);
     assert_eq!(g.stack.stack.len(), 1);
 }
@@ -424,7 +424,7 @@ fn test_sub() {
 fn test_sub_range_check() {
     let p = "CS CS lensum CS funkcia ++ CS CS % qeq CS CS lensum CS funkcia u";
     let (g, [a, b]) = precompile(p, None, [FULL_RANGE, FULL_RANGE]);
-    assert_pattern(&g, g.stack.stack[0], OptOptPattern::op2(OptOp::Sub, a, b));
+    assert_pattern(&g, g.stack.stack[0], P::op2(OptOp::Sub, a, b));
     assert_size(&g, 1..=1, 4..=4);
     assert_eq!(g.stack.stack.len(), 1);
 }
@@ -460,8 +460,8 @@ fn test_min2() {
 
 
     // TODO: actually assert it's just Min
-    assert_pattern(&g, g.stack.stack[0], OptOptPattern::op3(OptOp::Median, 3, a, b));
-    // assert_pattern(&g, g.stack.stack[0], OptOptPattern::op2(OptOp::Min, a, b));
+    assert_pattern(&g, g.stack.stack[0], P::op3(OptOp::Median, 3, a, b));
+    // assert_pattern(&g, g.stack.stack[0], P::op2(OptOp::Min, a, b));
     // assert_size(&g, 1..=1, 4..=4);
     // assert_eq!(g.stack.stack.len(), 1);
 }
@@ -471,7 +471,7 @@ fn test_ismin() {
     let p = "CS CS lensum CS funkcia CS ++ ++ ++ m CS CS ++ gcd ++ max CS CS % qeq CS CS CS ++ ++ qeq pop2 CS CS ^^ CS praise qeq qeq pop2 funkcia funkcia ++ % bitshift CS CS gcd CS ++ lroll CS u CS CS pop2 CS lensum m pop2 pop2 CS CS lensum ++ CS lensum ++ ++ ++ u CS CS lensum CS funkcia ++ u CS CS lensum CS funkcia ++ praise qeq pop2 pop2 funkcia ++ bitshift pop2 pop2 pop2 ++ CS CS lensum CS funkcia ++ CS CS % qeq CS CS lensum CS funkcia ++ u CS CS lensum CS funkcia ++ CS bulkxor";
 
     let (g, [a]) = precompile(p, None, [FULL_RANGE]);
-    assert_pattern(&g, g.stack.stack[0], OptOptPattern::op2(OptOp::Select(Condition::Eq(a.into(), i64::MIN.into())), 0, 1));
+    assert_pattern(&g, g.stack.stack[0], P::op2(OptOp::Select(Condition::Eq(a.into(), i64::MIN.into())), 0, 1));
     assert_size(&g, 1..=1, 4..=4);
     assert_eq!(g.stack.stack.len(), 1);
 }

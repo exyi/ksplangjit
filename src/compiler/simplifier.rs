@@ -1,10 +1,8 @@
-use std::{cmp, collections::BTreeSet, ops::RangeInclusive, sync::LazyLock};
+use std::sync::LazyLock;
 
-use arrayvec::ArrayVec;
-use num_integer::{Integer, Roots};
-use smallvec::{SmallVec, ToSmallVec, smallvec};
-
-use crate::{compiler::{analyzer::cond_implies, cfg::{BasicBlock, GraphBuilder}, ops::{InstrId, OpEffect, OptInstr, OptOp, ValueId}, osmibytecode::Condition, pattern::OptOptPattern, range_ops::{IRange, mod_split_ranges, range_pow_const, range_signum}, utils::{FULL_RANGE, abs_range, all_equal, intersect_range, range_is_signless, union_range}}, digit_sum::{self, evaluate_constant_propagation_feasibility}, vm::{self, OperationError}};
+use super::prelude::*;
+use super::{analyzer::cond_implies, pattern::OptOptPattern, range_ops::{mod_split_ranges, range_pow_const, range_signum}, utils::{all_equal, range_is_signless}};
+use crate::{digit_sum::{evaluate_constant_propagation_feasibility}, vm};
 
 use super::pattern::{OptOptPattern as P};
 
@@ -361,8 +359,8 @@ fn simplify_cond_core(cfg: &mut GraphBuilder, condition: &Condition<ValueId>, at
                         assert_ne!(0, mul);
 
                         // let (ac2, exact) = (ac / mul, ac % mul == 0);
-                        let ac_floor = ac.div_floor(&mul);
-                        let ac_ceil = ac.div_ceil(&mul);
+                        let ac_floor = num_integer::Integer::div_floor(&ac, &mul);
+                        let ac_ceil = num_integer::Integer::div_ceil(&ac, &mul);
                         let exact = ac_floor == ac_ceil;
 
                         match cond_flip(&condition, /* when: */ mul < 0) {
@@ -389,7 +387,7 @@ fn simplify_cond_core(cfg: &mut GraphBuilder, condition: &Condition<ValueId>, at
                         let exp = def.inputs.len() as u32;
                         let root = if exp == 2 { ac.isqrt() } else { (ac as f64).powi(exp as i32) as i64 };
                         let lower = root.pow(exp);
-                        let upper = (root + 1).checked_pow(exp);
+                        // let upper = (root + 1).checked_pow(exp);
                         match &condition {
                             Condition::Eq(_, _) if lower == ac =>
                                 return Condition::Eq(cfg.store_constant(lower), base),

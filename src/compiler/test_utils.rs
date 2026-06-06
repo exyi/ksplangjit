@@ -1,7 +1,6 @@
-use std::{cmp, fmt};
-
-use crate::compiler::{
-    cfg::GraphBuilder, cfg_interpreter, osmibytecode::OsmibytecodeBlock, osmibytecode_vm::{self, ExitPointId, RegFile}, precompiler::{NoTrace, Precompiler}
+use super::prelude::*;
+use super::{
+    cfg_interpreter, osmibytecode::OsmibytecodeBlock, osmibytecode_vm::{self, ExitPointId, RegFile}, precompiler::{NoTrace, Precompiler}
 };
 use crate::vm::{self, VMOptions, RunError};
 use crate::ops::Op;

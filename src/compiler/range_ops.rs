@@ -1,13 +1,9 @@
-use std::{borrow::Borrow, cmp, ops::{RangeBounds, RangeInclusive}};
+use std::{borrow::Borrow, ops::RangeBounds};
 
-use arrayvec::ArrayVec;
-use num_integer::Integer;
 use num_traits::{CheckedAdd, CheckedMul, CheckedSub};
 
-use crate::{compiler::utils::{FULL_RANGE, abs_range, intersect_range, range_2_i64, u64neg, union_range}, vm};
-
-pub type IRange = RangeInclusive<i64>;
-pub type URange = RangeInclusive<u64>;
+use super::prelude::*;
+use crate::{compiler::utils::{range_2_i64, u64neg}, vm};
 
 #[inline]
 pub fn from_rangebounds(r: impl RangeBounds<i64>) -> RangeInclusive<i64> {
@@ -590,7 +586,6 @@ fn test_range_div() {
 
 #[cfg(test)]
 fn test_helper_bitops(a: IRange, b: IRange) {
-    use super::utils::SaturatingInto;
     println!("Testing {a:?}  |  {b:?}");
     fn sample(a: &IRange) -> impl Iterator<Item = i64> {
         let zero = a.contains(&0).then_some(0);

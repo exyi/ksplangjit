@@ -1,9 +1,9 @@
-use std::{cmp, collections::BTreeSet, fmt::{self, Debug, Display}, num::NonZeroI32, ops::{Range, RangeInclusive}};
+use std::{fmt::{Debug, Display}, num::NonZeroI32, ops::Range};
 
-use num_integer::Integer;
-use smallvec::{SmallVec, ToSmallVec};
 
-use crate::{compiler::{osmibytecode::Condition, range_ops::{eval_combi, range_and, range_div, range_mod, range_mod_euclid, range_num_digits, range_or, range_xor}, utils::{Annotations, FULL_RANGE, NumFmt, RangeFmt, SaturatingInto, abs_range, add_range, int_to_letters, intersect_range, mul_range, range_2_i64, sub_range, union_range}}, digit_sum, funkcia, vm::{self, OperationError, median}};
+use super::prelude::*;
+use super::{range_ops::{eval_combi, range_and, range_div, range_mod, range_mod_euclid, range_num_digits, range_or, range_xor}, utils::{Annotations, add_range, int_to_letters, mul_range, range_2_i64, sub_range}};
+use crate::{digit_sum, funkcia, vm::{self, median}};
 
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -770,7 +770,7 @@ impl OptInstr {
         assert_ne!(0, self.id.1, "0 is reserved for block head");
 
         match &self.op {
-            OptOp::Assert(_, _) => assert!(matches!(self.effect, OpEffect::MayFail | OpEffect::MayDeopt), "BS effect: {self}"),
+            OptOp::Assert(_, _) => assert_matches!(self.effect, OpEffect::MayFail | OpEffect::MayDeopt, "BS effect: {self}"),
             OptOp::DeoptAssert(_) => assert_eq!(self.effect, OpEffect::MayDeopt, "BS effect: {self}"),
             OptOp::StackSwap => assert_eq!(self.effect, OpEffect::StackWrite, "BS effect: {self}"),
             OptOp::StackRead => assert_eq!(self.effect, OpEffect::StackRead, "BS effect: {self}"),

@@ -1,10 +1,8 @@
-use std::{cmp, collections::{BTreeSet, VecDeque}, ops::RangeInclusive, vec};
-use rustc_hash::{FxHashMap as HashMap};
+use std::collections::VecDeque;
 
-use num_integer::Integer;
-use smallvec::{SmallVec, smallvec};
-
-use crate::{compiler::{cfg::{GraphBuilder, StackState}, cheats::try_cheat, config::{JitConfig, get_config}, ops::{BlockId, InstrId, OpEffect, OptInstr, OptOp, ValueId}, opt_hoisting::{hoist_down, hoist_up}, osmibytecode::Condition, range_ops::{IRange, eval_combi, range_div, range_num_digits}, simplifier::{self, simplify_cond}, utils::{FULL_RANGE, abs_range, add_range, eval_combi_u64, intersect_range, print_callback_hack, range_2_i64, sort_tuple, sub_range}}, digit_sum::digit_sum, funkcia::funkcia, ops::Op, vm::{self, OperationError, QuadraticEquationResult, solve_quadratic_equation}};
+use super::prelude::*;
+use super::{cfg::StackState, cheats::try_cheat, config::{JitConfig, get_config}, opt_hoisting::{hoist_down, hoist_up}, range_ops::{eval_combi, range_div, range_num_digits}, simplifier::{simplify_cond}, utils::{add_range, eval_combi_u64, range_2_i64, sort_tuple, sub_range}};
+use crate::{digit_sum::digit_sum, funkcia::funkcia, ops::Op, vm};
 
 pub trait TraceProvider {
     // type TracePointer
@@ -294,7 +292,7 @@ impl<'a, TP: TraceProvider> Precompiler<'a, TP> {
         // we need to make sure the read does not have the function of deopt
         // i.e., there is already another read of the same variable in the same block
         let i = self.g.get_instruction_(instr);
-        assert!(matches!(i.op, OptOp::StackRead | OptOp::StackSwap));
+        assert_matches!(i.op, OptOp::StackRead | OptOp::StackSwap);
         let addr = i.inputs[0];
 
         for (_, prev) in self.g.block_(instr.0).instructions.range(0..instr.1).rev() {
@@ -385,7 +383,7 @@ impl<'a, TP: TraceProvider> Precompiler<'a, TP> {
                     let prev_swap = self.g.instr_mut(anti_swap).unwrap();
                     let &[prev_ix, prev_val] = prev_swap.inputs.as_slice() else { panic!() };
                     // rewrite previous swap to StackRead
-                    assert!(matches!(prev_swap.op, OptOp::StackSwap));
+                    assert_matches!(prev_swap.op, OptOp::StackSwap);
                     prev_swap.op = OptOp::StackRead;
                     prev_swap.inputs = smallvec![prev_ix];
                     prev_swap.effect = OpEffect::StackRead;
@@ -1158,13 +1156,13 @@ impl<'a, TP: TraceProvider> Precompiler<'a, TP> {
                 if a_start == a_end && b_start == b_end && c_start == c_end {
                     // all constants
                     self.g.pop_stack_n(3);
-                    match solve_quadratic_equation(a_start, b_start, c_start) {
-                        Ok(QuadraticEquationResult::None) => {},
-                        Ok(QuadraticEquationResult::One(sol1)) => {
+                    match vm::solve_quadratic_equation(a_start, b_start, c_start) {
+                        Ok(vm::QuadraticEquationResult::None) => {},
+                        Ok(vm::QuadraticEquationResult::One(sol1)) => {
                             let sol1 = self.g.store_constant(sol1);
                             self.g.stack.push(sol1);
                         },
-                        Ok(QuadraticEquationResult::Two(sol1, sol2)) => {
+                        Ok(vm::QuadraticEquationResult::Two(sol1, sol2)) => {
                             let sol1 = self.g.store_constant(sol1);
                             let sol2 = self.g.store_constant(sol2);
                             self.g.stack.push(sol1);
@@ -1450,8 +1448,7 @@ impl<'a, TP: TraceProvider> Precompiler<'a, TP> {
                         .map(|r| format!("{}:{:?}; ", r.0, r.1))
                         .collect();
                 print!("  Current Block: ");
-                print_callback_hack(|f| self.g.fmt_block(f, self.g.current_block_ref()));
-                println!();
+                println!("{}", fmt::from_fn(|f| self.g.fmt_block(f, self.g.current_block_ref())));
                 println!("  Stack: {}", self.g.fmt_stack());
                 println!("Interpreting op {}: {:?}", self.position, self.ops[self.position]);
                 if trace_results_fmt.len() > 0 {

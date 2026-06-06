@@ -5,7 +5,7 @@ use std::fmt;
 use ksplang_fuzz::ArbitraryOp;
 use libfuzzer_sys::fuzz_target;
 use arbitrary::Arbitrary;
-use ksplang::{compiler::test_utils::ReproData, ops::Op};
+use ksplang::{compiler::test_utils::ReproData};
 
 #[derive(Arbitrary)]
 struct FuzzInput {

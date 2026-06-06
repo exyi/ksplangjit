@@ -1,10 +1,9 @@
-use core::fmt;
-use std::{any::{Any, TypeId}, borrow::Borrow, cell::RefCell, cmp, collections::{BTreeSet, HashSet}, fmt::Debug, ops::{Add, RangeInclusive}, panic::RefUnwindSafe, sync::Arc};
+use std::{any::{Any, TypeId}, borrow::Borrow, fmt::Debug, panic::RefUnwindSafe};
 
-use num_integer::Integer;
 use num_traits::{Bounded, CheckedMul, One, SaturatingAdd, SaturatingMul, SaturatingSub, Zero};
-use rustc_hash::FxHashMap;
-use smallvec::{Array, SmallVec};
+use smallvec::Array;
+
+use crate::prelude::*;
 
 pub const EMPTY_RANGE: RangeInclusive<i64> = 1..=0;
 pub const FULL_RANGE: RangeInclusive<i64> = i64::MIN..=i64::MAX;
@@ -131,7 +130,7 @@ pub fn eval_combi_u64<F: Fn(u64, u64) -> Option<u64>>(
     let size_a = a.end().abs_diff(*a.start()).saturating_add(1);
     let size_b = b.end().abs_diff(*b.start()).saturating_add(1);
     if size_a.saturating_mul(size_b) <= max_combination {
-        let mut values = HashSet::new();
+        let mut values = HashSet::default();
         for x in a.clone() {
             for y in b.clone() {
                 if let Some(value) = f(x, y) {
@@ -237,7 +236,7 @@ pub trait AnnotationObj: Any + Debug + RefUnwindSafe {
 
 #[derive(Default, Clone)]
 pub struct Annotations {
-    data: Option<Box<FxHashMap<TypeId, Arc<dyn AnnotationObj>>>>
+    data: Option<Box<HashMap<TypeId, Arc<dyn AnnotationObj>>>>
 }
 
 impl Annotations {
@@ -253,7 +252,7 @@ impl Annotations {
         xy.downcast_ref()
     }
     pub fn set<T: 'static + AnnotationObj>(&mut self, x: T) {
-        let data = self.data.get_or_insert_with(|| Box::new(FxHashMap::default()));
+        let data = self.data.get_or_insert_with(|| Box::new(HashMap::default()));
         data.insert(TypeId::of::<T>(), Arc::new(x));
     }
     pub fn remove<T: 'static + AnnotationObj>(&mut self) -> bool {
@@ -291,23 +290,6 @@ impl Debug for Annotations {
         }
         map.finish()
     }
-}
-
-struct FormattableHack<F> { f: RefCell<Option<F>> }
-
-impl<F: FnOnce(&mut fmt::Formatter) -> Result<(), fmt::Error>> fmt::Display for FormattableHack<F> {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let func = self.f.borrow_mut().take().unwrap();
-        func(formatter)
-    }
-}
-
-pub fn fmt_callback_hack<F: FnOnce(&mut fmt::Formatter) -> Result<(), fmt::Error>>(f: F) -> String {
-    format!("{}", FormattableHack { f: RefCell::new(Some(f)) })
-}
-
-pub fn print_callback_hack<F: FnOnce(&mut fmt::Formatter) -> Result<(), fmt::Error>>(f: F) {
-    print!("{}", FormattableHack { f: RefCell::new(Some(f)) })
 }
 
 

@@ -23,3 +23,4 @@ pub mod vm;
 pub mod funkcia;
 pub mod digit_sum;
 pub mod compiler;
+mod prelude;
