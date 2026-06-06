@@ -390,9 +390,9 @@ fn simplify_cond_core(cfg: &mut GraphBuilder, condition: &Condition<ValueId>, at
                         // let upper = (root + 1).checked_pow(exp);
                         match &condition {
                             Condition::Eq(_, _) if lower == ac =>
-                                return Condition::Eq(cfg.store_constant(lower), base),
+                                return Condition::Eq(cfg.store_constant(root), base),
                             Condition::Neq(_, _) if lower == ac =>
-                                return Condition::Neq(cfg.store_constant(lower), base),
+                                return Condition::Neq(cfg.store_constant(root), base),
                             Condition::Eq(_, _) => return Condition::False,
                             Condition::Neq(_, _) => return Condition::True,
                             //  TODO: comparisons, but it's tricky because power of two is abs

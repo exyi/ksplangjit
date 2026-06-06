@@ -1057,3 +1057,8 @@ fn fuzz_digit_sum_neq_single_preimage_simplification() {
     verify_repro_const(ops, vec![0], vec![-3746995114199744509, 1067625790819280]);
 }
 
+#[test]
+fn fuzz_pow_eq_propagation() {
+    let ops = vec![ DigitSum, DigitSum, DigitSum, DigitSum, LSwap, Gcd2, DigitSum, DigitSum, DigitSum, LenSum, Universal, DigitSum, Increment, LenSum ];
+    verify_repro_const(ops, vec![0], vec![3]);
+}
