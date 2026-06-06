@@ -249,7 +249,7 @@ fn simplify_cond_core(cfg: &mut GraphBuilder, condition: &Condition<ValueId>, at
                         let range = cfg.val_range(b2);
                         if ac == 9 && (*range.start() >= 1 && *range.end() < 99 || *range.start() > -99 && *range.end() <= -1) {
                             // special case - digit_sum == 9 on numbers bellow 99 is equivalent to Divides
-                            return Condition::Divides(b2, ValueId::C_NINE);
+                            return Condition::Divides(b2, ValueId::C_NINE).neg_if(condition.is_neq());
                         }
 
                         if let Some(xs) = evaluate_constant_propagation_feasibility(range.clone(), ac, /* max_output */ 4) {

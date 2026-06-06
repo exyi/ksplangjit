@@ -1032,3 +1032,9 @@ fn fuzz_condition_assumption_monotonicity() {
     let ops = vec![ DigitSum, DigitSum, Praise, Increment, LenSum, LSwap, Modulo, Remainder, DigitSum, LSwap, Universal, TetrationNumIters, And, Goto, Pop ];
     verify_repro_const(ops, vec![-1069390231808, 3393489295283584759, -1799215508322261204, -70083833109288985, 3470915402239386667, 39], vec![-4545381069291228, -593356947487424933]);
 }
+
+#[test]
+fn fuzz_digit_sum_not_nine_divisibility_simplification() {
+    let ops = vec![ DigitSum, DigitSum, LSwap, Modulo, Increment, DigitSum, DigitSum, DigitSum, Increment, LenSum ];
+    verify_repro_const(ops, vec![24672], vec![-888677073002233601]);
+}
