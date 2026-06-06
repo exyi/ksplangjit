@@ -989,7 +989,7 @@ fn try_increment_block_opcount(block: &mut BasicBlock, increment: i64) -> bool {
         Err(_) => false,
         Ok(new_count) => {
             block.ksplang_instr_count = new_count;
-            return true
+            true
         }
     }
 }

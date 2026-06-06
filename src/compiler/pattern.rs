@@ -419,10 +419,10 @@ impl<'a> OptOptPattern<'a> {
                 }
             } else if patterns[0].allow_empty {
                 info.assert_is_at(&save1);
-                return Self::match_list(info, cfg, vals, &patterns[1..], commutativity)
+                Self::match_list(info, cfg, vals, &patterns[1..], commutativity)
             } else {
                 info.assert_is_at(&save1);
-                return false;
+                false
             }
         }
     }

@@ -186,7 +186,7 @@ pub fn try_cheat<TP: TraceProvider>(p: &mut Precompiler<TP>) -> Option<Precompil
     let is_range = |r: IRange| {
         let Some(top_val) = p.g.stack.peek() else { return false };
         let range = p.g.val_range(top_val);
-        return range.start() >= r.start() && range.end() <= r.end();
+        range.start() >= r.start() && range.end() <= r.end()
     };
     // let is_constant = |c: i64| {
     //     let Some(top_val) = p.g.stack.peek() else { return false; };

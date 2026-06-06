@@ -166,7 +166,7 @@ pub(crate) fn solve_quadratic_equation(
     let c = c as i128;
 
     fn compute_discriminant(a: i128, b: i128, c: i128) -> Option<i128> {
-        Some(b.checked_mul(b)?.checked_sub(a.checked_mul(c)?.checked_mul(4)?)?)
+        b.checked_mul(b)?.checked_sub(a.checked_mul(c)?.checked_mul(4)?)
     }
 
     let results: [Option<i64>; 2] = match compute_discriminant(a, b, c) {
@@ -1549,8 +1549,10 @@ pub struct OptimizingVM {
 impl OptimizingVM {
     pub fn new(program: Vec<Op>, allow_deez: bool) -> Self {
         let conf = compiler::config::get_config();
-        let mut opt = Optimizer::default();
-        opt.trigger_count = conf.trace_trigger_count;
+        let opt = Optimizer {
+            trigger_count: conf.trace_trigger_count,
+            ..Optimizer::default()
+        };
         Self { program, allow_deez, opt, conf, obc_regs: osmibytecode_vm::RegFile::new() }
     }
 

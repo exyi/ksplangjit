@@ -603,7 +603,7 @@ impl GraphBuilder {
                 }
                 // TODO: merge phis to sealed blocks
             }
-            self.val_info_mut(new).map(|v_info| v_info.used_at.extend(info.used_at));
+            if let Some(v_info) = self.val_info_mut(new) { v_info.used_at.extend(info.used_at) }
             self.replaced_values.insert(old, new);
             self.stack.check_invariants();
         }
@@ -821,7 +821,7 @@ impl GraphBuilder {
         };
         let value_numbering = value_numbering && effect2.allows_value_numbering();
         if value_numbering {
-            if let Some(found) = self.value_numbering_try_lookup(op.clone(), &args, self.next_instr_id()) {
+            if let Some(found) = self.value_numbering_try_lookup(op.clone(), args, self.next_instr_id()) {
                 return (found, None)
             }
         }
@@ -1161,7 +1161,7 @@ impl GraphBuilder {
         let Some(i) = self.instr_mut(id) else {
             panic!("Instruction {id} not found")
         };
-        return i;
+        i
     }
 
     pub fn set_effect(&mut self, id: InstrId, effect: OpEffect) {

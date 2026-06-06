@@ -265,7 +265,7 @@ pub fn range_pow_const(a: IRange, exp: u32) -> (IRange, IRange) {
     } else {
         a.start().pow(exp)..=a.end().pow(exp)
     };
-    return (a, result)
+    (a, result)
 }
 
 // Returns (bits always set, bits may be set)

@@ -240,7 +240,7 @@ pub fn evaluate_constant_propagation_feasibility(range: RangeInclusive<i64>, con
             return None
         }
     }
-    return Some(result)
+    Some(result)
 }
 
 pub fn digit_sum_reference(num: i64) -> i64 {
