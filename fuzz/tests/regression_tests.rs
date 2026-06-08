@@ -1068,3 +1068,15 @@ fn fuzz_simpl_cond_pow_overflow() {
     let ops = vec![ DigitSum, DigitSum, Praise, DigitSum, Remainder, DigitSum, LSwap, Modulo, LenSum, DigitSum, DigitSum, DigitSum, LenSum, Universal, DigitSum, DigitSum, DigitSum, LenSum, Universal, Remainder, BranchIfZero ];
     verify_repro_const(ops, vec![0], vec![504604270176261373]);
 }
+
+#[test]
+fn fuzz_stack_swap_to_stack_read_must_remove_inner_checkpoints1() {
+    let ops = vec![ DigitSum, DigitSum, DigitSum, DigitSum, Call, Modulo, Increment, DigitSum, Increment, LSwap, DigitSum, Remainder, DigitSum, LSwap, DigitSum, Remainder, DigitSum, Bitshift, Funkcia, Pop, Median, Increment, DigitSum, Increment, DigitSum, DigitSum, Increment, LSwap, DigitSum, Remainder, DigitSum, LSwap, DigitSum, Remainder, DigitSum, Bitshift, Qeq, Pop, Median, DigitSum, Increment, Increment, GcdN, LSwap, Increment, LSwap, DigitSum, LenSum, LSwap, LSwap, Universal, Pop, Remainder, Remainder, Call, And ];
+    verify_repro_const(ops, vec![-4006563225381282981, 7319758355667376928, 9006919027009103237, 6582871108119454773, 14678373], vec![7291790021905317119]);
+}
+
+#[test]
+fn fuzz_stack_swap_to_stack_read_must_remove_inner_checkpoints2() {
+    let ops = vec![ DigitSum, DigitSum, DigitSum, DigitSum, Increment, LSwap, DigitSum, Remainder, DigitSum, LSwap, DigitSum, Increment, DigitSum, DigitSum, LSwap, DigitSum, Remainder, DigitSum, LSwap, DigitSum, Remainder, Qeq, Pop, GcdN, LSwap, Increment, LSwap, Call ];
+    verify_repro_const(ops, vec![57179], vec![7291790021905317119]);
+}
