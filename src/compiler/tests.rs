@@ -459,9 +459,9 @@ fn test_min2() {
     let g = precompiler.g;
 
 
-    // TODO: actually assert it's just Min
-    assert_pattern(&g, g.stack.stack[0], P::op3(OptOp::Median, 3, a, b));
-    // assert_pattern(&g, g.stack.stack[0], P::op2(OptOp::Min, a, b));
+    // assert_pattern(&g, g.stack.stack[0], P::op3(OptOp::Median, 3, a, b));
+    // TODO: the CFG should not contain the Deopt max(5, a, b) == 0
+    assert_pattern(&g, g.stack.stack[0], P::op2(OptOp::Min, a, b));
     // assert_size(&g, 1..=1, 4..=4);
     // assert_eq!(g.stack.stack.len(), 1);
 }

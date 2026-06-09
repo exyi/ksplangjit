@@ -63,6 +63,51 @@ pub fn cond_implies(_cfg: &GraphBuilder, assume: &Condition<ValueId>, b: &Condit
     
 // }
 
+pub fn interesting_implications(g: &GraphBuilder, cond: &Condition<ValueId>, at: InstrId) -> Vec<Condition<ValueId>> {
+    use Condition::*;
+
+    match cond {
+        Eq(con, b) | Neq(con, b) | Gt(con, b) | Geq(con, b) | Lt(con, b) | Leq(con, b)
+            if let Some(a) = g.get_constant(*con) => {
+
+            if let Some(def) = g.get_defined_at(*b) {
+                match def.op {
+                    OptOp::Min => {
+                        let range = g.val_range_at(*b, at);
+                        // C == min(C, x, y)  =>  C <= x  &  C <= y
+                        // C <= min(x, y)     =>  C <= x  &  C <= y
+                        if matches!(cond, Leq(_, _)) || matches!(cond, Eq(_, _) if *range.end() == a) {
+                            return def.inputs.iter().map(|x| Condition::Leq(*con, *x)).collect()
+                        }
+                        // C < min(x, y)      =>  C < x  &  C < y
+                        // C != min(C, x, y)  =>  C < x  &  C < y
+                        if matches!(cond, Lt(_, _)) || matches!(cond, Neq(_, _) if *range.end() == a) {
+                            return def.inputs.iter().map(|x| Condition::Lt(*con, *x)).collect()
+                        }
+                    }
+                    OptOp::Max => {
+                        let range = g.val_range_at(*b, at);
+                        // C == max(C, x, y)  =>  C >= x  &  C >= y
+                        // C >= max(x, y)     =>  C >= x  &  C >= y
+                        if matches!(cond, Geq(_, _)) || matches!(cond, Eq(_, _) if *range.start() == a) {
+                            return def.inputs.iter().map(|x| Condition::Geq(*con, *x)).collect()
+                        }
+                        // C > min(x, y)      =>  C > x  &  C > y
+                        // C != min(C, x, y)  =>  C > x  &  C > y
+                        if matches!(cond, Gt(_, _)) || matches!(cond, Neq(_, _) if *range.start() == a) {
+                            return def.inputs.iter().map(|x| Condition::Gt(*con, *x)).collect()
+                        }
+                    }
+
+                    _ => {}
+                }
+            }
+        }
+        _ => {}
+    }
+
+    return Vec::new();
+}
 
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]

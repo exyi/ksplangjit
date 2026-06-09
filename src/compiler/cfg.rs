@@ -704,6 +704,12 @@ impl GraphBuilder {
                 self.add_assumption(val, at, cond.clone(), FULL_RANGE);
             }
         }
+        for implication in analyzer::interesting_implications(self, &cond, at) {
+            debug_assert_ne!(implication, cond);
+            let simplified = simplify_cond(self, implication, at);
+            debug_assert_ne!(simplified, cond);
+            self.add_assumption_simple(at, simplified);
+        }
     }
     pub fn add_assumption(&mut self, val: ValueId, at: InstrId, cond: Condition<ValueId>, range: RangeInclusive<i64>) {
         if cond == Condition::False || range.is_empty() || val.is_constant() || self.current_block_ref().is_terminated {
