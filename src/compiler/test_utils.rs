@@ -2,7 +2,8 @@ use super::prelude::*;
 use super::{
     cfg_interpreter, osmibytecode::OsmibytecodeBlock, osmibytecode_vm::{self, ExitPointId, RegFile}, precompiler::{NoTrace, Precompiler}
 };
-use crate::vm::{self, VMOptions, RunError};
+use crate::compiler::config::get_config;
+use crate::vm::{self, OptimizingVM, VMOptions, RunError};
 use crate::ops::Op;
 
 const PI_TEST_VALUES: [i8; 42] = [
@@ -96,6 +97,7 @@ pub fn verify_repro_const(ops: Vec<Op>, input: Vec<i64>, constin: Vec<i64>) -> (
     let r = ReproData::new(ops, input).with_constin(constin);
     r.verify()
 }
+
 fn verify_repro_core(r: ReproData) -> (GraphBuilder, OsmibytecodeBlock) {
     let full_input = r.input.iter().copied().chain(r.const_input.iter().copied()).collect::<Vec<i64>>();
 
@@ -189,3 +191,33 @@ fn verify_repro_core(r: ReproData) -> (GraphBuilder, OsmibytecodeBlock) {
 
     (g, obc_block)
 }
+
+/// Runs the program + input in a the OptimizingVM
+pub fn verify_vm_repro(ops: Vec<Op>, trace_input: Vec<i64>, input: Vec<i64>) {
+    let mut opt_vm = OptimizingVM::new(ops.clone(), true);
+
+    let max_ops = 20_000;
+    let max_stack = cmp::max(1000, input.len() + 100);
+
+    for _ in 0..=get_config().trace_trigger_count + 1 {
+        let options = VMOptions::new(&trace_input, max_stack, &PI_TEST_VALUES, max_ops, u64::MAX);
+        let r = opt_vm.run(trace_input.clone(), options);
+        // assert!(!matches!(r, Err(RunError::StackOverflow)));
+    }
+
+    let options = VMOptions::new(&input, max_stack, &PI_TEST_VALUES, max_ops, u64::MAX);
+    let opt_res = opt_vm.run(input.clone(), options.clone());
+
+    let ref_res = vm::run(&ops, options.clone());
+
+    match (opt_res, ref_res) {
+        (Ok(opt), Ok(reference)) => {
+            assert_eq!(opt.stack, reference.stack);
+            assert_eq!(opt.instruction_pointer, reference.instruction_pointer);
+            assert_eq!(opt.reversed, reference.reversed);
+        },
+        (Err(opt), Err(reference)) => assert_eq!(opt, reference),
+        (opt, reference) => panic!("OptimizingVM mismatch: {opt:?} != {reference:?}"),
+    }
+}
+

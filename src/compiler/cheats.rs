@@ -126,6 +126,7 @@ fn move_instr_cond<TP: TraceProvider>(p: &mut Precompiler<TP>,
 fn cheat_push_constant<TP: TraceProvider>(p: &mut Precompiler<TP>,
                                           value: i64,
                                           instrs: usize) -> PrecompileStepResult {
+    p.g.stack.inform_optimized_stack_height(20);  // TODO: I guess I don't care
     p.g.peek_stack(); // need to peek stack so it behaves equivalently to running the program
     let c = p.g.store_constant(value);
     p.g.stack.push(c);

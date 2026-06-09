@@ -154,6 +154,7 @@ pub struct StackStateTracker {
     pub lookup: Map<ValueId, Vec<u32>>,
     pub poped_values: Vec<ValueId>, // values that were popped from the stack (will be checked if used somewhere, and maybe removed)
     pub stack_depth: u32,
+    pub max_height: u32,
     pub push_count: u32,
     pub pop_count: u32,
 }
@@ -165,6 +166,7 @@ impl StackStateTracker {
             lookup: Default::default(),
             poped_values: Vec::new(),
             stack_depth: 0,
+            max_height: 0,
             push_count: 0,
             pop_count: 0,
         }
@@ -210,6 +212,14 @@ impl StackStateTracker {
             self.lookup.entry(val).or_default().push(self.stack.len() as u32);
         }
         self.stack.push(val);
+        self.max_height = cmp::max(self.max_height, self.stack_position().saturating_into());
+    }
+
+    /// Record that some stack space would be used in real interpreter, but we somehow skipped going
+    /// through the StackStateTracker so we just correct it here.
+    /// It can be overapproximation - it is handled in vm.rs by simply not starting the block if we are too close to the limit.
+    pub fn inform_optimized_stack_height(&mut self, num: u32) {
+        self.max_height = cmp::max(self.max_height, (self.stack_position() - num as i32).saturating_into());
     }
 
     pub fn save(&mut self) -> StackState {

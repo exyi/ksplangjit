@@ -1,13 +1,13 @@
 //! Functions for executing ksplang programs.
 use core::panic;
-use std::{cmp::Reverse, collections::{BTreeMap, BTreeSet}, fs::{File, create_dir_all}, io::{BufWriter, Write}, mem, num::Wrapping, path::Path, sync::Arc};
+use std::{cmp::{self, Reverse}, collections::{BTreeMap, BTreeSet}, fs::{File, create_dir_all}, io::{BufWriter, Write}, mem, num::Wrapping, path::Path, sync::Arc};
 use rustc_hash::{FxHashMap as HashMap};
 
 use num_integer::{Integer, Roots};
 use smallvec::{SmallVec, ToSmallVec};
 use thiserror::Error;
 
-use crate::{compiler::{self, cfg::GraphBuilder, cfg_interpreter, config::get_config, osmibytecode::{OsmibyteOp, OsmibytecodeBlock}, osmibytecode_vm, precompiler::{NoTrace, Precompiler, TraceProvider}}, digit_sum::digit_sum, funkcia, ops::Op};
+use crate::{compiler::{self, analyzer, cfg::GraphBuilder, cfg_interpreter, config::get_config, osmibytecode::{OsmibyteOp, OsmibytecodeBlock}, osmibytecode_vm, precompiler::{NoTrace, Precompiler, TraceProvider}}, digit_sum::digit_sum, funkcia, ops::Op};
 
 #[cfg(test)]
 mod tests;
@@ -770,10 +770,13 @@ impl<'a, TTracer: Tracer> State<'a, TTracer> {
             }
             Op::BulkXor => {
                 let n = self.pop()?;
-                if (self.len() as i64) < 2 * n {
+                let Some(required) = n.checked_mul(2) else {
+                    return Err(OperationError::IntegerOverflow)
+                };
+                if (self.len() as i64) < required {
                     return Err(OperationError::NotEnoughElements {
                         stack_len: self.len(),
-                        required: 2 * n,
+                        required,
                     });
                 }
                 let mut xors = Vec::new();
@@ -847,8 +850,10 @@ impl<'a, TTracer: Tracer> State<'a, TTracer> {
                 ));
             }
             Op::Jump => {
-                let i = self.peek()?;
-                return Ok(Effect::AddInstructionPointer(i + 1));
+                let Some(i) = self.peek()?.checked_add(1) else {
+                    return Err(OperationError::IntegerOverflow);
+                };
+                return Ok(Effect::AddInstructionPointer(i));
             }
             Op::Rev => {
                 let a = self.pop()?;
@@ -1234,6 +1239,8 @@ struct OptimizedBlock {
     osmibytecode: Option<OsmibytecodeBlock>,
     cfg: Option<Box<GraphBuilder>>,
     original_tracer: Option<Box<ActualTracer>>,
+    max_executed_instructions: u64,
+    max_stack_height: u32,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -1577,7 +1584,9 @@ impl OptimizingVM {
         });
         s.ops = Arc::new(vec![]);
         s.pi_digits = &[];
-        println!("final state: {:?}", s);
+        if s.conf.should_log(2) {
+            println!("final state: {:?}", s);
+        }
 
         if let Some(dump_dir) = &self.conf.info_dump_dir {
             let mut stats_file = BufWriter::new(File::create(Path::new(dump_dir).join("stats.csv")).unwrap());
@@ -1732,6 +1741,17 @@ impl OptimizingVM {
 
             // add or utilize optimized block:
             if let Some(opt_block) = s.tracer.get_block(s.reversed, s.ip) {
+                let block_max_executed_instructions = opt_block.max_executed_instructions;
+                if block_max_executed_instructions >= cmp::min(options.stop_after, options.max_op_count).saturating_sub(s.instructions_run)
+                    || s.max_stack_size <= s.stack.len() + opt_block.max_stack_height as usize
+                {
+                    // we are too close to the limit (instructions / stack size)
+                    last_opt_ops = 0;
+                    if should_log_runtime {
+                        println!("Not running block at {} {} c={} (too close to limit, block can do {} i {} stack size)", s.ip, s.reversed, s.instructions_run, opt_block.max_executed_instructions, opt_block.max_stack_height);
+                    }
+                    continue;
+                }
                 if should_log_runtime {
                     println!("Running optimized block at {} {} c={}", s.ip, s.reversed, s.instructions_run);
                 }
@@ -1759,6 +1779,7 @@ impl OptimizingVM {
                             block_stats.stats.cfg_op_count += result.executed_cfg_ops + result.executed_obc_ops;
                             block_stats.stats.entry_count += 1;
                         }
+                        debug_assert!(block_max_executed_instructions >= result.executed_ksplang, "Will not be valid with loops");
                         s.instructions_run += result.executed_ksplang;
                         s.instructions_optimized += result.executed_ksplang;
                         s.instructions_cfg_run += result.executed_cfg_ops;
@@ -1766,6 +1787,8 @@ impl OptimizingVM {
                         s.blocks_entered += 1;
                         s.ip = result.next_ip;
                         last_opt_ops = result.executed_ksplang;
+
+                        debug_assert!(s.stack.len() <= options.max_stack_size);
                     }
                 }
             } else {
@@ -1877,6 +1900,8 @@ impl OptimizingVM {
             println!("===================================================================");
         }
 
+        let max_executed_instructions = analyzer::get_max_instructions_executed(&cfg);
+        let max_stack_height = cfg.stack.max_height;
         let b = OptimizedBlock {
             cfg: (osmibytecode.is_none() || self.conf.verify > 0).then(|| Box::new(cfg)),
             osmibytecode,
@@ -1884,6 +1909,8 @@ impl OptimizingVM {
             reversed,
             start_ip,
             stats: BlockStats::default(),
+            max_executed_instructions,
+            max_stack_height,
         };
         s.tracer.insert_block(b);
     }

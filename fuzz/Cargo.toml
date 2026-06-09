@@ -31,3 +31,9 @@ test = false
 doc = false
 bench = false
 
+[[bin]]
+name = "fuzz_target_3"
+path = "fuzz_targets/fuzz_target_3.rs"
+test = false
+doc = false
+bench = false

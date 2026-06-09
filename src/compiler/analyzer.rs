@@ -135,3 +135,22 @@ pub fn dataflow<T: PartialEq>(
         iters += 1;
     }
 }
+
+pub fn get_max_instructions_executed(g: &GraphBuilder) -> u64 {
+    let block_count: Vec<i64> = g.blocks.iter().map(|b| {
+        let base = b.ksplang_instr_count as i64;
+        let inc = b.instructions.values().filter(|i| matches!(i.op, OptOp::KsplangOpsIncrement(_)))
+                                         .map(|i| i.inputs.iter()
+                                                          .map(|val| *g.val_range_at(*val, i.id).end())
+                                                          .sum::<i64>())
+                                         .sum::<i64>();
+        base + inc
+    }).collect();
+    let df = dataflow::<i64>(g, /* reverse */ false,
+        |b| block_count[b.id.0 as usize],
+        // TODO: add some "check" instructions for handling loops
+        |b, _, ins, _outs| block_count[b.id.0 as usize] + *ins.iter().copied().max().unwrap_or(&0)
+    );
+
+    return cmp::max(0, *df.values().max().unwrap()) as u64;
+}

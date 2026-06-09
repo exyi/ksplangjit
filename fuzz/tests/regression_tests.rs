@@ -1,4 +1,4 @@
-use ksplang::{compiler::test_utils::{ReproData, verify_repro, verify_repro_const}, ops::Op::{self, *}};
+use ksplang::{compiler::test_utils::{ReproData, verify_repro, verify_repro_const, verify_vm_repro}, ops::Op::{self, *}};
 
 fn run_fuzz_case(ops: Vec<Op>, input: Vec<i64>) {
     verify_repro(ops, input);
@@ -1079,4 +1079,37 @@ fn fuzz_stack_swap_to_stack_read_must_remove_inner_checkpoints1() {
 fn fuzz_stack_swap_to_stack_read_must_remove_inner_checkpoints2() {
     let ops = vec![ DigitSum, DigitSum, DigitSum, DigitSum, Increment, LSwap, DigitSum, Remainder, DigitSum, LSwap, DigitSum, Increment, DigitSum, DigitSum, LSwap, DigitSum, Remainder, DigitSum, LSwap, DigitSum, Remainder, Qeq, Pop, GcdN, LSwap, Increment, LSwap, Call ];
     verify_repro_const(ops, vec![57179], vec![7291790021905317119]);
+}
+
+
+#[test]
+fn fuzz_vm_bulkxor_overflow() {
+    let ops = vec![ BulkXor, Pop ];
+    verify_vm_repro(ops, vec![-6892192139373648920], vec![0]);
+    let ops = vec![ BulkXor, Swap ];
+    verify_vm_repro(ops, vec![7591394876901256043], vec![0]);
+}
+
+#[test]
+fn fuzz_vm_overshoot_instruction_limit() {
+    let ops = vec![ DigitSum, Praise, Pop, Swap, DigitSum, Gcd2, Call, Max ];
+    verify_vm_repro(ops, vec![3834029825245260305, 3834029160418063669, 3380232515174610229, -1, -9007199254740993, -1, -1, -1, -1, 2090233177053331455], vec![-71776119061217287, -1198134255981363361, 67376974077583199]);
+}
+
+#[test]
+fn fuzz_vm_overshoot_stack_size_limit() {
+    let ops = vec![ Increment, DigitSum, Goto ];
+    verify_vm_repro(ops, vec![1], vec![0]);
+}
+
+#[test]
+fn fuzz_vm_jump_plus1_arithmentic_overflow() {
+    let ops = vec![ Jump ];
+    verify_vm_repro(ops, vec![-1374442319413832704], vec![9223372036854775807]);
+}
+
+#[test]
+fn fuzz_vm_stackoverflow_error_somehow() {  // TODO:
+    let ops = vec![ Gcd2, Median, Median, Median, Median, Call, Max ];
+    verify_vm_repro(ops, vec![-695784767233, -72019106835988481], vec![136]);
 }

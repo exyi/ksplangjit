@@ -5,10 +5,7 @@ use super::{
     OptimizingVM, State, VMOptions,
 };
 use crate::compiler::{
-    cfg::GraphBuilder,
-    osmibytecode::OsmibytecodeBlock,
-    osmibytecode_vm::RegFile,
-    precompiler::{NoTrace, Precompiler, TraceProvider},
+    analyzer, cfg::GraphBuilder, osmibytecode::OsmibytecodeBlock, osmibytecode_vm::RegFile, precompiler::{NoTrace, Precompiler, TraceProvider}
 };
 
 const STACK_PREVIEW: usize = 16;
@@ -445,6 +442,8 @@ impl<'vm, 'prog, 'opts> ShrinkingContext<'vm, 'prog, 'opts> {
         pre.interpret();
         let osmibytecode = (settings.use_osmibyte && self.vm.conf.allow_osmibyte_backend)
             .then(|| OsmibytecodeBlock::from_cfg(&pre.g));
+        let max_executed_instructions = analyzer::get_max_instructions_executed(&pre.g);
+        let max_stack_height = pre.g.stack.max_height;
         OptimizedBlock {
             cfg: Some(Box::new(pre.g)),
             osmibytecode,
@@ -452,6 +451,8 @@ impl<'vm, 'prog, 'opts> ShrinkingContext<'vm, 'prog, 'opts> {
             reversed: self.start_state.reversed,
             start_ip: self.start_state.ip,
             stats: super::BlockStats::default(),
+            max_executed_instructions,
+            max_stack_height,
         }
     }
 
