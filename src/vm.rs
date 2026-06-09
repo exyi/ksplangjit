@@ -1655,7 +1655,7 @@ impl OptimizingVM {
                 let ops_per_run = b.stats.cfg_op_count as f64 / runs;
                 let ops_percent = b.stats.cfg_op_count as f64 / total_ops as f64 * 100.0;
                 let ksplang_per_run = b.stats.ksplang_op_count as f64 / runs;
-                let ksplang_percent = b.stats.cfg_op_count as f64 / total_ksplang as f64 * 100.0;
+                let ksplang_percent = b.stats.ksplang_op_count as f64 / total_ksplang as f64 * 100.0;
 
                 print!("{}{:>8} {:>12} starts ({:>4.1}%){:>15} ops ({:>4.1}%,{:>6.1} per run) {:>16} ksplang ({:4.1}%,{:>8.1} per run)  ",
                           if b.reversed { "R" } else { " " },
