@@ -698,7 +698,14 @@ impl GraphBuilder {
         }
     }
 
-    pub fn add_assumption_simple(&mut self, at: InstrId, cond: Condition<ValueId>) {
+    pub fn add_assumption_simple(&mut self, at: InstrId, cond: Condition<ValueId>, allow_terminate: bool) -> bool {
+        if matches!(cond, Condition::False) {
+            if allow_terminate {
+                self.push_instr(OptOp::Assert(Condition::False, OperationError::Unreachable), &[], false, None, None);
+            }
+            return false
+        }
+
         for val in cond.regs() {
             if val.is_computed() {
                 self.add_assumption(val, at, cond.clone(), FULL_RANGE);
@@ -706,10 +713,14 @@ impl GraphBuilder {
         }
         for implication in analyzer::interesting_implications(self, &cond, at) {
             debug_assert_ne!(implication, cond);
-            let simplified = simplify_cond(self, implication, at);
+            let simplified = simplify_cond(self, implication.clone(), at);
             debug_assert_ne!(simplified, cond);
-            self.add_assumption_simple(at, simplified);
+            if !self.add_assumption_simple(at, simplified, allow_terminate) {
+                return false
+            }
         }
+
+        return true
     }
     pub fn add_assumption(&mut self, val: ValueId, at: InstrId, cond: Condition<ValueId>, range: RangeInclusive<i64>) {
         if cond == Condition::False || range.is_empty() || val.is_constant() || self.current_block_ref().is_terminated {
@@ -965,18 +976,18 @@ impl GraphBuilder {
         if instr.op.is_terminal() {
             self.current_block_mut().is_terminated = true;
         } else if instr.effect != OpEffect::None {
-            match &instr.op {
+            always_fails = always_fails || match &instr.op {
                 OptOp::DeoptAssert(cond) | OptOp::Assert(cond, _) =>
-                     self.add_assumption_simple(instr.id, cond.clone()),
+                    !self.add_assumption_simple(instr.id, cond.clone(), false),
                 OptOp::StackSwap | OptOp::StackRead => {
                     let c = simplify_cond(self, Condition::Leq(ValueId::C_ZERO, instr.inputs[0]), instr.id);
-                    self.add_assumption_simple(instr.id, c)
+                    !self.add_assumption_simple(instr.id, c, false)
                 }
                 OptOp::Div | OptOp::CursedDiv | OptOp::Mod | OptOp::ModEuclid if !instr.inputs[1].is_constant() => {
                     let c = simplify_cond(self, Condition::Neq(ValueId::C_ZERO, instr.inputs[1]), instr.id);
-                    self.add_assumption_simple(instr.id, c)
+                    !self.add_assumption_simple(instr.id, c, false)
                 }
-                _ => {}
+                _ => false
             }
         }
 

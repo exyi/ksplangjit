@@ -21,13 +21,16 @@ pub fn u64neg(a: u64) -> i64 {
     (a as i64).wrapping_neg()
 }
 
+#[inline]
 pub fn abs_range(r: impl Borrow<RangeInclusive<i64>>) -> RangeInclusive<u64> {
-    let (a, b) = r.borrow().clone().into_inner();
-    if (a >= 0) == (b >= 0) {
-        let (a, b) = sort_tuple(a.abs_diff(0), b.abs_diff(0));
-        a..=b
+    let r = r.borrow();
+
+    let a = r.start().unsigned_abs();
+    let b = r.end().unsigned_abs();
+    if range_is_signless(r) {
+        cmp::min(a, b)..=cmp::max(a, b)
     } else {
-        0..=cmp::max(a.abs_diff(0), b.abs_diff(0))
+        0..=cmp::max(a, b)
     }
 }
 
@@ -48,7 +51,8 @@ pub fn sub_range(a: &RangeInclusive<i64>, b: &RangeInclusive<i64>) -> RangeInclu
 /// Returns true if the range does not include both negative and positive numbers
 #[inline]
 pub fn range_is_signless(r: &RangeInclusive<i64>) -> bool {
-    *r.start() >= 0 || *r.end() <= 0
+    // *r.start() >= 0 || *r.end() <= 0
+    (*r.start() < 0) == (*r.end() < 0)
 }
 
 #[inline]

@@ -1113,3 +1113,10 @@ fn fuzz_vm_stackoverflow_error_somehow() {  // TODO:
     let ops = vec![ Gcd2, Median, Median, Median, Median, Call, Max ];
     verify_vm_repro(ops, vec![-695784767233, -72019106835988481], vec![136]);
 }
+
+#[test]
+fn fuzz_unreachable_branch_manifests_as_range_inference_conflicts() {
+   let ops = vec![ DigitSum, DigitSum, LenSum, DigitSum, Increment, DigitSum, DigitSum, LenSum, LSwap, DigitSum, LSwap, Universal, BranchIfZero, DigitSum, LSwap, Remainder, Max, LenSum, DigitSum, LenSum, DigitSum, LSwap, DigitSum, LSwap, Remainder, BranchIfZero, DigitSum, DigitSum, Increment, Gcd2, Universal, LSwap, DigitSum, DigitSum, Remainder, Call ];
+   verify_repro_const(ops, vec![0], vec![1080582560886106719]);
+}
+

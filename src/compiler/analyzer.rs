@@ -1,7 +1,9 @@
+use crate::compiler::utils::u64neg;
+
 use super::prelude::*;
 
 /// Simplify b assuming a is true
-pub fn cond_implies(_cfg: &GraphBuilder, assume: &Condition<ValueId>, b: &Condition<ValueId>, _at: InstrId) -> Option<Condition<ValueId>> {
+pub fn cond_implies(cfg: &GraphBuilder, assume: &Condition<ValueId>, b: &Condition<ValueId>, _at: InstrId) -> Option<Condition<ValueId>> {
     use Condition::*;
     // very naive implementation for now
     if assume == &Condition::False || b == &Condition::True { return Some(Condition::True) }
@@ -36,6 +38,12 @@ pub fn cond_implies(_cfg: &GraphBuilder, assume: &Condition<ValueId>, b: &Condit
             return Some(Condition::True)
         }
 
+        (Divides(x1, d1), Divides(x2, d2)) if x1 == x2 && let Some(d1) = cfg.get_constant(*d1) && let Some(d2) = cfg.get_constant(*d2) => {
+            if d1.is_multiple_of(&d2) {
+                return Some(Condition::True)
+            }
+        }
+
         _ => {}
     }
 
@@ -63,8 +71,10 @@ pub fn cond_implies(_cfg: &GraphBuilder, assume: &Condition<ValueId>, b: &Condit
     
 // }
 
-pub fn interesting_implications(g: &GraphBuilder, cond: &Condition<ValueId>, at: InstrId) -> Vec<Condition<ValueId>> {
+pub fn interesting_implications(g: &mut GraphBuilder, cond: &Condition<ValueId>, at: InstrId) -> Vec<Condition<ValueId>> {
     use Condition::*;
+
+    let mut r = Vec::new();
 
     match cond {
         Eq(con, b) | Neq(con, b) | Gt(con, b) | Geq(con, b) | Lt(con, b) | Leq(con, b)
@@ -103,10 +113,22 @@ pub fn interesting_implications(g: &GraphBuilder, cond: &Condition<ValueId>, at:
                 }
             }
         }
+
+        &Divides(x, div) => {
+            let x_range = g.val_range_at(x, at);
+            if !div.is_constant() {
+                r.push(Neq(ValueId::C_ZERO, div));
+                let x_max = *abs_range(&x_range).end();
+                if !x_range.contains(&0) {
+                    r.push(Geq(g.store_constant(x_max.saturating_into()), div));
+                    r.push(Leq(g.store_constant(u64neg(x_max)), div));
+                }
+            }
+        }
         _ => {}
     }
 
-    return Vec::new();
+    return r;
 }
 
 

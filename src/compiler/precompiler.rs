@@ -1731,7 +1731,7 @@ impl<'a, TP: TraceProvider> Precompiler<'a, TP> {
                     .reduce(|mut a: BTreeSet<_>, b: BTreeSet<_>| { a.retain(|x| b.contains(x)); a }).unwrap();
 
             for assume in common_assumes {
-                self.g.add_assumption_simple(InstrId(bid, 0), assume);
+                self.g.add_assumption_simple(InstrId(bid, 0), assume, true);
             }
 
             if self.g.block_(bid).incoming_jumps.len() > 1 {

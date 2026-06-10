@@ -637,12 +637,13 @@ fn simplify_cond_core(cfg: &mut GraphBuilder, condition: &Condition<ValueId>, at
                 }
             }
 
-            if range_is_signless(&br) && range_is_signless(&ar) && !(ara.contains(&1) && ara.contains(&cmp::max(2, *bra.start()))) {
-                // Try to reduce 3 % x == 0 into 3 == x
-                // we need the lowest divisor of a constant `a`
-                if a.is_constant() {
-                    let ac = *ar.start();
-                    let abs_a = ac.unsigned_abs();
+            if a.is_constant() {
+                let ac = *ar.start();
+                let abs_a = ac.unsigned_abs();
+                if range_is_signless(&br) {
+                    let same_sign = (*br.start() >= 0) == (ac >= 0);
+                    // Try to reduce 3 % x == 0 into 3 == x
+                    // we need the lowest divisor of a constant `a`
                     // 1. |b| > |a| => False
                     // 2. |a|/2 < |b| < |a| => False
                     if *bra.start() > abs_a || *bra.start() > abs_a / 2 && *bra.end() < abs_a {
@@ -666,11 +667,28 @@ fn simplify_cond_core(cfg: &mut GraphBuilder, condition: &Condition<ValueId>, at
                     }
 
                     // If a is prime, then |b| must be 1 or a.
-                    if Some(abs_a) == known_mindiv && *bra.start() > 1 {
-                        return Condition::Eq(b, if (*br.start() >= 0) == (ac >= 0) { a } else { cfg.store_constant(-ac) });
+                    if abs_a == lower_bound_factor {
+                         let eq_a = Condition::Eq(b, if same_sign { a } else { cfg.store_constant(-ac) });
+                         let eq_1 = Condition::Eq(b, if *br.start() >= 0 { ValueId::C_ONE } else { ValueId::C_NEG_ONE });
+                         if *bra.start() > 1 {
+                             return eq_a;
+                         }
+                         if *bra.end() < abs_a {
+                             return eq_1;
+                         }
+                         match (simplify_cond(cfg, eq_a, at), simplify_cond(cfg, eq_1, at)) {
+                             (Condition::True, r) | (r, Condition::True) => return r,
+                             (Condition::False, _) | (_, Condition::False) => return Condition::False,
+                             (a, b) | (b, a) if cond_implies(cfg, &a, &b, at) == Some(Condition::True) => return a,
+                             _ => {}
+                         }
+                    }
+
+                    if *bra.start() > abs_a / lower_bound_factor && (ac < 0) == (*br.start() < 0) {
+                        // b in (a/f, inf)  ->  b == a
+                        return Condition::Eq(b, if (*br.start() >= 0) == (ac >= 0) { a } else { cfg.store_constant(-ac) })
                     }
                 }
-
             }
             // let b_def = cfg.get_defined_at(b);
             if let Some(a_def) = cfg.get_defined_at(a) {
