@@ -761,6 +761,16 @@ fn actual_tracer_keeps_whole_linear_block_after_branch() {
 }
 
 #[test]
+fn actual_tracer_finds_first_instruction_in_current_block() {
+    let mut tracer = ActualTracer::new(&[], false, 100);
+
+    assert!(tracer.should_continue(false, 0, Op::LSwap));
+    tracer.instruction(0, Op::LSwap, &Ok(Effect::None)).unwrap();
+
+    assert_eq!(tracer.get_results(0).collect::<Vec<_>>(), vec![(0, smallvec![])]);
+}
+
+#[test]
 fn test_rev() {
     // Not enough parameters
     assert!(!run_op_is_ok(&[], Op::Rev));

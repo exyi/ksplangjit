@@ -1448,8 +1448,10 @@ impl ActualTracer {
             self.ip_lookup.range(ip..).next()
         };
 
-        let current_block_ix: Option<usize> = if (self.ips.len() as i64 - self.start_block_ix as i64) < dir * (ip as i64 - self.start_block_location as i64) {
-            Some((dir * (ip as i64 - self.start_block_location as i64)) as usize + self.start_block_ix)
+        let current_block_len = self.ips.len() as i64 - self.start_block_ix as i64;
+        let current_block_offset = dir * (ip as i64 - self.start_block_location as i64);
+        let current_block_ix: Option<usize> = if current_block_offset >= 0 && current_block_offset < current_block_len {
+            Some(current_block_offset as usize + self.start_block_ix)
         } else {
             None
         };
