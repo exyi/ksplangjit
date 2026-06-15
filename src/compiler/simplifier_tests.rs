@@ -377,6 +377,19 @@ fn test_absfactorial_eq_factorial_constant_6_neg_only() {
 }
 
 #[test]
+fn test_absfactorial_negative_range_after_assumption() {
+    let (mut g, [a]) = create_graph([-3..=0]);
+    let fact = g.push_instr(OptOp::AbsFactorial, &[a], false, None, None).0;
+    let at = g.next_instr_id();
+    let cneg3 = g.store_constant(-3);
+
+    g.add_assumption_simple(at, Condition::Eq(cneg3, a), true);
+
+    let simplified = simplify_cond(&mut g, Condition::Neq(ValueId::C_SIX, fact), END_INSTR);
+    assert_eq!(simplified, Condition::False);
+}
+
+#[test]
 fn test_absfactorial_eq_factorial_constant_6_mixed_sign_keeps() {
     let (mut g, [a]) = create_graph([-6..=6]);
     let fact = g.push_instr(OptOp::AbsFactorial, &[a], false, None, None).0;

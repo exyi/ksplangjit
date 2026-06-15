@@ -729,7 +729,7 @@ impl GraphBuilder {
         }
         debug_assert!(self.values.contains_key(&val), "{val} not in {self}");
         assert!(cond == Condition::True || cond.regs().contains(&val));
-        debug_assert_eq!(cond, simplify_cond(self, cond.clone(), InstrId::default()));
+        debug_assert_eq!(cond, simplify_cond(self, cond.clone(), InstrId::default()), "{self}");
 
         let current_range = self.val_range_at(val, at);
         let pure_range = intersect_range(&range, &current_range);

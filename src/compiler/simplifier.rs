@@ -441,7 +441,7 @@ fn simplify_cond_core(cfg: &mut GraphBuilder, condition: &Condition<ValueId>, at
                     if let OptOp::AbsFactorial = &def.op {
                         let fac_input = def.inputs[0]; // TODO: generalize for all monotonous functions (tetr, lensum)
                         let range = cfg.val_range_at(fac_input, at);
-                        let positive = range.end().unsigned_abs() >= range.start().unsigned_abs();
+                        let positive = range.end().unsigned_abs() >= range.start().unsigned_abs() && *range.end() >= 0;
                         let sign = if positive { 1 } else { -1 };
 
                         match vm::FACTORIAL_TABLE.binary_search(&ac) {
