@@ -437,7 +437,7 @@ fn test_min2() {
     let parsed = parser::parse_program(p).unwrap();
     let initial_stack = vec![1000, 2000];
     let options = VMOptions::new(&initial_stack, 1000, &[], 10000, 10000);
-    let run_result = run_with_stats::<ActualTracer>(&parsed, options, ActualTracer::new(&initial_stack, 10000)).unwrap();
+    let run_result = run_with_stats::<ActualTracer>(&parsed, options, ActualTracer::new(&initial_stack, false, 10000)).unwrap();
     let trace = run_result.tracer;
 
     println!("trace: {:?}", trace);

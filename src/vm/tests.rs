@@ -736,6 +736,31 @@ fn test_jump() {
 }
 
 #[test]
+fn actual_tracer_keeps_whole_linear_block_after_branch() {
+    let mut tracer = ActualTracer::new(&[10, 20], false, 100);
+    tracer.start_block_location = 0;
+
+    for &(ip, op, ref result) in &[
+        (0, Op::Nop, Ok(Effect::None)),
+        (1, Op::Goto, Ok(Effect::SetInstructionPointer(4))),
+        (4, Op::Nop, Ok(Effect::None)),
+        (5, Op::Nop, Ok(Effect::None)),
+        (6, Op::Jump, Ok(Effect::AddInstructionPointer(-4))),
+        (2, Op::Nop, Ok(Effect::None)),
+        (3, Op::Nop, Ok(Effect::None)),
+    ] {
+        assert!(tracer.should_continue(false, ip, op));
+        tracer.instruction(ip, op, &result).unwrap();
+    }
+
+    assert_eq!(tracer.get_branch_targets(0).collect::<Vec<_>>(), vec![1]);
+    assert_eq!(tracer.get_branch_targets(1).collect::<Vec<_>>(), vec![4]);
+    assert_eq!(tracer.get_branch_targets(4).collect::<Vec<_>>(), vec![5]);
+    assert_eq!(tracer.get_branch_targets(5).collect::<Vec<_>>(), vec![6]);
+    assert_eq!(tracer.get_branch_targets(6).collect::<Vec<_>>(), vec![2]);
+}
+
+#[test]
 fn test_rev() {
     // Not enough parameters
     assert!(!run_op_is_ok(&[], Op::Rev));

@@ -823,7 +823,7 @@ impl<'a, TTracer: Tracer> State<'a, TTracer> {
                 let ip = (self.ip as i64) + if self.reversed { -1 } else { 1 };
 
                 
-                self.stack.push(ip);
+                self.push(ip)?;
                 return Ok(Effect::SetInstructionPointer(
                      i.try_into().map_err(|_| OperationError::InstructionOutOfRange { index: i })?,
                 ));
@@ -1423,15 +1423,17 @@ impl Tracer for ActualTracer {
         if self.record_jump_location {
             self.start_block_location = ip;
             self.start_block_ix = self.ips.len();
+            self.record_jump_location = false;
         }
         true
     }
 }
 
 impl ActualTracer {
-    pub fn new(init_stack: &[i64], max_count: u32) -> Self {
+    pub fn new(init_stack: &[i64], reversed: bool, max_count: u32) -> Self {
         Self {
             initial_stack_sample: init_stack.into(),
+            reversed,
             max_count,
             ..Default::default()
         }
@@ -1813,8 +1815,8 @@ impl OptimizingVM {
             (ActualTracer::default(), s)
         } else {
             let (optimizer, mut st) = s.swap_tracer(ActualTracer::default());
+            st.tracer = ActualTracer::new(&st.stack, reversed, self.conf.trace_limit);
             st.tracer.start_block_location = st.ip;
-            st.tracer.max_count = self.conf.trace_limit;
             if st.conf.should_log(2) {
                 println!("Starting tracing at {start_ip}");
             }
