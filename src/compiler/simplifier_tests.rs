@@ -526,6 +526,16 @@ fn test_mul_div_simplification_keeps_divide_by_zero_effect() {
 }
 
 #[test]
+fn test_prime_divides_simplification_keeps_other_possible_divisor() {
+    let (mut g, [x]) = create_graph([0..=9]);
+    g.push_assert(Condition::Neq(ValueId::C_ONE, x), crate::vm::OperationError::DivisionByZero, None);
+
+    let c5 = ValueId::C_FIVE;
+    assert_eq!(simplify_cond(&mut g, Condition::Divides(c5, x), END_INSTR), Condition::Eq(c5, x));
+    assert_eq!(simplify_cond(&mut g, Condition::NotDivides(c5, x), END_INSTR), Condition::Neq(c5, x));
+}
+
+#[test]
 fn test_add_merging_simplification() {
     let (mut g, [a, b, c, d]) = create_graph([-100..=100, 0..=100, 0..=100, 0..=111]);
     let add1 = g.value_numbering(OptOp::Add, &[a, b], None, None);

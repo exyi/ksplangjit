@@ -677,9 +677,9 @@ fn simplify_cond_core(cfg: &mut GraphBuilder, condition: &Condition<ValueId>, at
                              return eq_1;
                          }
                          match (simplify_cond(cfg, eq_a, at), simplify_cond(cfg, eq_1, at)) {
-                             (Condition::True, r) | (r, Condition::True) => return r,
-                             (Condition::False, _) | (_, Condition::False) => return Condition::False,
-                             (a, b) | (b, a) if cond_implies(cfg, &a, &b, at) == Some(Condition::True) => return a,
+                             (Condition::True, _) | (_, Condition::True) => return Condition::True,
+                             (Condition::False, r) | (r, Condition::False) => return r,
+                             (a, b) | (b, a) if cond_implies(cfg, &a, &b, at) == Some(Condition::True) => return b,
                              _ => {}
                          }
                     }

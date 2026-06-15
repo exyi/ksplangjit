@@ -1143,3 +1143,9 @@ fn fuzz_max_neq_boundary_does_not_make_branch_unreachable() {
     let ops = vec![ Gcd2, DigitSum, LSwap, BranchIfZero, Gcd2, Pop, DigitSum, Max, LSwap, Goto ];
     verify_repro_const(ops, vec![-2534361568116805, 192], vec![-2534361568116805, -274043239744]);
 }
+
+#[test]
+fn fuzz_invalid_not_div_simplification_to_eq() {
+    let ops = vec![ DigitSum, LSwap, Remainder, DigitSum, DigitSum, DigitSum, DigitSum, DigitSum, LSwap, Remainder, DigitSum, DigitSum, Remainder, Call ];
+    verify_repro_const(ops, vec![77], vec![-1585267068834414593]);
+}
