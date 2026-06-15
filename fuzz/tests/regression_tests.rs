@@ -1149,3 +1149,9 @@ fn fuzz_invalid_not_div_simplification_to_eq() {
     let ops = vec![ DigitSum, LSwap, Remainder, DigitSum, DigitSum, DigitSum, DigitSum, DigitSum, LSwap, Remainder, DigitSum, DigitSum, Remainder, Call ];
     verify_repro_const(ops, vec![77], vec![-1585267068834414593]);
 }
+
+#[test]
+fn fuzz_simplify_cond_divisibility_excessive_complexity() {
+    let ops = vec![ Qeq, DigitSum, Increment, Remainder, Increment, Pop2, DigitSum, Funkcia, Increment, Remainder, Increment, DigitSum, DigitSum, DigitSum, Increment, DigitSum, LenSum, DigitSum, DigitSum, Remainder, Goto ];
+    verify_repro_const(ops, vec![7016996765293429052, 7016996765293437281, 7017137502781792609, 7016996765293437281, 7016996765293437281, 7016996765293437281, 7016996765293437281, 4685431781059551585, 1640697037182, 3098242164056260359, -252908026138590850, 3010128], vec![220397031095216128, -74309393868178941, -32932572157706240]);
+}

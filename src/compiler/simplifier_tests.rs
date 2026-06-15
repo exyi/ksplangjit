@@ -536,6 +536,15 @@ fn test_prime_divides_simplification_keeps_other_possible_divisor() {
 }
 
 #[test]
+fn test_one_divides_simplifies_directly() {
+    let (mut g, [positive, negative]) = create_graph([1..=100, -100..=-1]);
+
+    assert_eq!(simplify_cond(&mut g, Condition::Divides(ValueId::C_ONE, positive), END_INSTR), Condition::Eq(ValueId::C_ONE, positive));
+    assert_eq!(simplify_cond(&mut g, Condition::NotDivides(ValueId::C_ONE, positive), END_INSTR), Condition::Neq(ValueId::C_ONE, positive));
+    assert_eq!(simplify_cond(&mut g, Condition::Divides(ValueId::C_ONE, negative), END_INSTR), Condition::Eq(ValueId::C_NEG_ONE, negative));
+}
+
+#[test]
 fn test_add_merging_simplification() {
     let (mut g, [a, b, c, d]) = create_graph([-100..=100, 0..=100, 0..=100, 0..=111]);
     let add1 = g.value_numbering(OptOp::Add, &[a, b], None, None);

@@ -641,6 +641,11 @@ fn simplify_cond_core(cfg: &mut GraphBuilder, condition: &Condition<ValueId>, at
                 let ac = *ar.start();
                 let abs_a = ac.unsigned_abs();
                 if range_is_signless(&br) {
+                    if abs_a == 1 {
+                        // 1 % x == 0  =>  1 == x or -1 == x
+                        return Condition::Eq(b, if *br.start() >= 0 { ValueId::C_ONE } else { ValueId::C_NEG_ONE });
+                    }
+
                     let same_sign = (*br.start() >= 0) == (ac >= 0);
                     // Try to reduce 3 % x == 0 into 3 == x
                     // we need the lowest divisor of a constant `a`
