@@ -90,8 +90,8 @@ pub fn interesting_implications(g: &mut GraphBuilder, cond: &Condition<ValueId>,
                             return def.inputs.iter().map(|x| Condition::Leq(*con, *x)).collect()
                         }
                         // C < min(x, y)      =>  C < x  &  C < y
-                        // C != min(C, x, y)  =>  C < x  &  C < y
-                        if matches!(cond, Lt(_, _)) || matches!(cond, Neq(_, _) if *range.end() == a) {
+                        // C != min(x, y) with C as the lower bound also means C < min(x, y)
+                        if matches!(cond, Lt(_, _)) || matches!(cond, Neq(_, _) if *range.start() == a) {
                             return def.inputs.iter().map(|x| Condition::Lt(*con, *x)).collect()
                         }
                     }
@@ -102,9 +102,9 @@ pub fn interesting_implications(g: &mut GraphBuilder, cond: &Condition<ValueId>,
                         if matches!(cond, Geq(_, _)) || matches!(cond, Eq(_, _) if *range.start() == a) {
                             return def.inputs.iter().map(|x| Condition::Geq(*con, *x)).collect()
                         }
-                        // C > min(x, y)      =>  C > x  &  C > y
-                        // C != min(C, x, y)  =>  C > x  &  C > y
-                        if matches!(cond, Gt(_, _)) || matches!(cond, Neq(_, _) if *range.start() == a) {
+                        // C > max(x, y)      =>  C > x  &  C > y
+                        // C != max(x, y) with C as the upper bound also means C > max(x, y)
+                        if matches!(cond, Gt(_, _)) || matches!(cond, Neq(_, _) if *range.end() == a) {
                             return def.inputs.iter().map(|x| Condition::Gt(*con, *x)).collect()
                         }
                     }

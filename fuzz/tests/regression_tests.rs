@@ -1131,3 +1131,15 @@ fn fuzz_condition_assumption_monotonicity_abssub_negative() {
    let ops = vec![ DigitSum, DigitSum, LenSum, Median, LSwap, DigitSum, Remainder, Remainder, DigitSum, DigitSum, Funkcia, Qeq, LSwap, Praise, LenSum, DigitSum, LSwap, Remainder, DigitSum, LSwap, Universal, DigitSum, Increment, Increment, DigitSum, Increment, Increment, DigitSum, TetrationNumIters, Max, Increment, Increment, LenSum ];
    verify_repro_const(ops, vec![0], vec![-3761688987588245047, 3422396843006085918]);
 }
+
+#[test]
+fn fuzz_max_neq_boundary_does_not_make_remainder_unreachable() {
+    let ops = vec![ Qeq, LenSum, Max, DigitSum, Remainder ];
+    verify_repro_const(ops, vec![216505942722610508, 1098404678677], vec![0, -71211244979146995, -18296156865161729]);
+}
+
+#[test]
+fn fuzz_max_neq_boundary_does_not_make_branch_unreachable() {
+    let ops = vec![ Gcd2, DigitSum, LSwap, BranchIfZero, Gcd2, Pop, DigitSum, Max, LSwap, Goto ];
+    verify_repro_const(ops, vec![-2534361568116805, 192], vec![-2534361568116805, -274043239744]);
+}

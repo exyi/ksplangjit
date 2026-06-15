@@ -189,6 +189,24 @@ fn test_mod_comparison_simplification_through_max() {
 }
 
 #[test]
+fn test_max_neq_const_lower_bound_simplification() {
+    let (mut g, [x]) = create_graph([FULL_RANGE]);
+
+    let max = g.push_instr(OptOp::Max, &[x, ValueId::C_FIVE], false, None, None).0;
+
+    assert_eq!(simplify_cond(&mut g, Condition::Neq(max, ValueId::C_FIVE), END_INSTR), Condition::Lt(ValueId::C_FIVE, x));
+}
+
+#[test]
+fn test_min_neq_const_upper_bound_simplification() {
+    let (mut g, [x]) = create_graph([FULL_RANGE]);
+
+    let min = g.push_instr(OptOp::Min, &[x, ValueId::C_FIVE], false, None, None).0;
+
+    assert_eq!(simplify_cond(&mut g, Condition::Neq(min, ValueId::C_FIVE), END_INSTR), Condition::Gt(ValueId::C_FIVE, x));
+}
+
+#[test]
 fn test_mul_simplification_gt_negative_multiplier() {
     let (mut g, [x]) = create_graph([-99..=99]);
     let mul = g.push_instr(OptOp::Mul, &[ValueId::C_NEG_TWO, x], false, None, None).0;
