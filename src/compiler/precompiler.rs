@@ -965,7 +965,7 @@ impl<'a, TP: TraceProvider> Precompiler<'a, TP> {
                 };
 
                 if n_const > 128 || n_const <= 0 {
-                    return NevimJakChteloByToKonstantu(vec![n])
+                    return NevimJak
                 }
 
                 self.g.pop_stack();

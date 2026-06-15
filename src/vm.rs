@@ -1820,14 +1820,18 @@ impl OptimizingVM {
             }
             let result = run_state(&mut st, options);
             if result.as_ref().is_err_and(|e| !matches!(e, RunError::TracerInterrupt(_, _))) {
-                println!("Error while tracing: {:?}", result.as_ref().err().unwrap());
+                if self.conf.should_log(1) {
+                    println!("Error while tracing: {:?}", result.as_ref().err().unwrap());
+                }
                 return (st.swap_tracer(optimizer).1, result);
             }
             if st.conf.should_log(2) {
                 println!("Collected trace {start_ip} {}..{} {:?}: {} IPs, {} values, {} branches", st.ops[start_ip], st.ip, st.ops.get(st.ip), st.tracer.ips.len(), st.tracer.values.len(), st.tracer.ip_lookup.len());
             }
             if st.tracer.ips.len() < 100 && st.tracer.ips.len() < self.conf.trace_limit as usize {
-                println!("ehh tracing interrupted only after {} at {}", st.tracer.ips.len(), st.ip);
+                if self.conf.should_log(1) {
+                    println!("ehh tracing interrupted only after {} at {} {:?}", st.tracer.ips.len(), st.ip, st.ops.get(st.ip));
+                }
                 return (st.swap_tracer(optimizer).1, Ok(()));
             }
 
