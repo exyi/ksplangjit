@@ -1734,7 +1734,7 @@ impl<'a, TP: TraceProvider> Precompiler<'a, TP> {
                 self.g.add_assumption_simple(InstrId(bid, 0), assume, true);
             }
 
-            if self.g.block_(bid).incoming_jumps.len() > 1 {
+            if !self.g.current_block_ref().is_terminated && self.g.block_(bid).incoming_jumps.len() > 1 {
                 self.g.push_checkpoint();
             }
             assert_eq!(self.g.stack.stack.len(), pb.stack_snapshot[0].stack.len());

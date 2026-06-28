@@ -1161,3 +1161,9 @@ fn fuzz_slow_assumption_dedup() {
     let ops = vec![ DigitSum, DigitSum, BranchIfZero, Median, Increment, Modulo, Increment, DigitSum, DigitSum, LenSum, Increment, DigitSum, LenSum, Increment, DigitSum, DigitSum, LenSum, Max, Max, DigitSum, DigitSum, LenSum, Call, Universal, Increment, Max, Max, Max, Max, Max, Max, Max, Max, Max, Max, Max, Max, Max ];
     verify_repro_const(ops, vec![-2170202986119044639], vec![-1, -3204448257, 72039898187890687, 549755813854724, 2387225703656530209, 2384129478912712993, 2387225703656530209, 2387225703656530209, -2170202986119093983, -46686220937263135]);
 }
+
+#[test]
+fn fuzz_block_terminated_before_starting() {
+    let ops = vec![ DigitSum, Gcd2, Praise, LenSum, DigitSum, Funkcia, LSwap, Modulo, DigitSum, LSwap, Qeq, Max, And, LenSum, GcdN, Median, LSwap, DigitSum, Max, BranchIfZero ];
+    verify_repro_const(ops, vec![0], vec![4991677236986773503]);
+}
