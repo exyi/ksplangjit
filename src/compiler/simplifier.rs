@@ -1,5 +1,7 @@
 use std::sync::LazyLock;
 
+use num_integer::Roots;
+
 use super::prelude::*;
 use super::{analyzer::cond_implies, pattern::OptOptPattern, range_ops::{mod_split_ranges, range_pow_const, range_signum}, utils::{all_equal, range_is_signless}};
 use crate::{digit_sum::{evaluate_constant_propagation_feasibility}, vm};
@@ -91,6 +93,22 @@ fn condition_overlaps_range(condition: &Condition<ValueId>, ac: i64, r: &IRange)
     }
 }
 
+fn exact_pow_root(value: i64, exp: u32) -> Option<i64> {
+    debug_assert!(exp >= 2);
+    if value < 0 && exp.is_even() {
+        return None
+    }
+    let root_abs = value.unsigned_abs().nth_root(exp);
+    if root_abs.checked_pow(exp) != Some(value.unsigned_abs()) {
+        return None
+    }
+    if value < 0 {
+        Some(0i64.strict_sub_unsigned(root_abs))
+    } else {
+        Some(root_abs.assert_into())
+    }
+}
+
 fn create_range_constraint_condition(cfg: &mut GraphBuilder, v: ValueId, range0: &IRange, range: &IRange) -> ArrayVec<Condition<ValueId>, 2> {
     let mut res = ArrayVec::new();
     if range.start() == range.end() {
@@ -145,9 +163,11 @@ fn simplify_cond_core(cfg: &mut GraphBuilder, condition: &Condition<ValueId>, at
         }
         Condition::False => Condition::False,
         Condition::True => Condition::True,
-        Condition::Eq(a, b) | Condition::Leq(a, b) | Condition::Geq(a, b) | Condition::Divides(a, b)
+        Condition::Divides(a, b) if a == b => Condition::Neq(ValueId::C_ZERO, a),
+        Condition::NotDivides(a, b) if a == b => Condition::Eq(ValueId::C_ZERO, a),
+        Condition::Eq(a, b) | Condition::Leq(a, b) | Condition::Geq(a, b)
             if a == b => Condition::True,
-        Condition::Neq(a, b) | Condition::Lt(a, b) | Condition::Gt(a, b) | Condition::NotDivides(a, b)
+        Condition::Neq(a, b) | Condition::Lt(a, b) | Condition::Gt(a, b)
             if a == b => Condition::False,
         Condition::Eq(a, b) if a > b => Condition::Eq(b, a),
         Condition::Neq(a, b) if a > b => Condition::Neq(b, a),
@@ -382,21 +402,24 @@ fn simplify_cond_core(cfg: &mut GraphBuilder, condition: &Condition<ValueId>, at
                         }
                     }
 
-                    if matches!(def.op, OptOp::Mul) && all_equal(def.inputs.iter()) { // pow
+                    if matches!(def.op, OptOp::Mul) && all_equal(def.inputs.iter()) && condition.is_eq_neq() { // pow
                         let base = def.inputs[0];
                         let exp = def.inputs.len() as u32;
-                        let root = if exp == 2 { ac.isqrt() } else { (ac as f64).powf(1.0 / exp as f64).round() as i64 };
-                        let lower = root.pow(exp);
-                        let upper = (root + 1).checked_pow(exp);
-                        debug_assert!(upper.is_none_or(|x| x > ac));
-                        match &condition {
-                            Condition::Eq(_, _) if lower == ac =>
-                                return Condition::Eq(cfg.store_constant(root), base),
-                            Condition::Neq(_, _) if lower == ac =>
-                                return Condition::Neq(cfg.store_constant(root), base),
-                            Condition::Eq(_, _) => return Condition::False,
-                            Condition::Neq(_, _) => return Condition::True,
-                            //  TODO: comparisons, but it's tricky because power of two is abs
+                        let Some(root) = exact_pow_root(ac, exp) else {
+                            return Condition::False.neg_if(condition.is_neq())
+                        };
+                        let base_range = cfg.val_range_at(base, at);
+                        let mut roots: SmallVec<[i64; 2]> = smallvec![root];
+                        if exp.is_even() && root != 0 {
+                            roots.push(-root);
+                        }
+                        roots.retain(|root| base_range.contains(root));
+
+                        match (&condition, roots.as_slice()) {
+                            (Condition::Eq(_, _), []) => return Condition::False,
+                            (Condition::Neq(_, _), []) => return Condition::True,
+                            (Condition::Eq(_, _), [root]) => return Condition::Eq(cfg.store_constant(*root), base),
+                            (Condition::Neq(_, _), [root]) => return Condition::Neq(cfg.store_constant(*root), base),
                             _ => {}
                         }
                     }
@@ -706,7 +729,7 @@ fn simplify_cond_core(cfg: &mut GraphBuilder, condition: &Condition<ValueId>, at
                     return Condition::True;
                 }
                 if matches!(a_def.op, OptOp::Mul) && a_def.inputs.contains(&b) {
-                    return Condition::True;
+                    return Condition::Neq(ValueId::C_ZERO, b);
                 }
                 if matches!(a_def.op, OptOp::Mul) &&
                     let Some(b_const) = cfg.get_constant(b) &&
@@ -1385,7 +1408,7 @@ pub fn simplify_instr(cfg: &mut GraphBuilder, mut i: OptInstr, opt: InstrSimplOp
             }
 
             OptOp::ShiftL | OptOp::ShiftR if *ranges[1].end() < 0 => {
-                let bits = i.inputs[0];
+                let bits = i.inputs[1];
                 return (i.with_op(OptOp::Assert(Condition::False, OperationError::NegativeBitCount { bits: 0 }), &[bits], OpEffect::MayFail), None);
             }
 

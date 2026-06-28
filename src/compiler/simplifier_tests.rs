@@ -219,6 +219,36 @@ fn test_mul_simplification_gt_negative_multiplier() {
 }
 
 #[test]
+fn test_pow_condition_simplification_keeps_both_square_roots() {
+    let (mut g, [x]) = create_graph([-10..=10]);
+    let square = g.value_numbering(OptOp::Mul, &[x, x], None, None);
+
+    assert_eq!(simplify_cond(&mut g, Condition::Eq(ValueId::C_FOUR, square), END_INSTR), Condition::Eq(ValueId::C_FOUR, square));
+    assert_eq!(simplify_cond(&mut g, Condition::Neq(ValueId::C_FOUR, square), END_INSTR), Condition::Neq(ValueId::C_FOUR, square));
+}
+
+#[test]
+fn test_pow_condition_simplification_leaves_comparisons() {
+    let (mut g, [x]) = create_graph([-10..=10]);
+    let square = g.value_numbering(OptOp::Mul, &[x, x], None, None);
+
+    assert_eq!(simplify_cond(&mut g, Condition::Lt(ValueId::C_FIVE, square), END_INSTR), Condition::Lt(ValueId::C_FIVE, square));
+    assert_eq!(simplify_cond(&mut g, Condition::Gt(ValueId::C_FIVE, square), END_INSTR), Condition::Gt(ValueId::C_FIVE, square));
+    assert_eq!(simplify_cond(&mut g, Condition::Leq(ValueId::C_FIVE, square), END_INSTR), Condition::Leq(ValueId::C_FIVE, square));
+    assert_eq!(simplify_cond(&mut g, Condition::Geq(ValueId::C_FIVE, square), END_INSTR), Condition::Geq(ValueId::C_FIVE, square));
+}
+
+#[test]
+fn test_pow_condition_simplification_negative_odd_power() {
+    let (mut g, [x]) = create_graph([-10..=10]);
+    let cneg8 = g.store_constant(-8);
+    let cube = g.value_numbering(OptOp::Mul, &[x, x, x], None, None);
+
+    assert_eq!(simplify_cond(&mut g, Condition::Eq(cneg8, cube), END_INSTR), Condition::Eq(ValueId::C_NEG_TWO, x));
+    assert_eq!(simplify_cond(&mut g, Condition::Neq(cneg8, cube), END_INSTR), Condition::Neq(ValueId::C_NEG_TWO, x));
+}
+
+#[test]
 fn test_divides_simplification_bug_10_2() {
     let (mut g, [v2]) = create_graph([2..=2]);
     // 10 % 2 == 0
@@ -302,6 +332,23 @@ fn test_divides_simplification_2to4_3() { // used in duplication
     // 3 % v1 == 0
     let simplified = simplify_cond(&mut g, Condition::Divides(ValueId::C_THREE, v1), END_INSTR);
     assert_eq!(simplified, Condition::Eq(ValueId::C_THREE, v1), "3 % v1[2..4]");
+}
+
+#[test]
+fn test_divides_same_value_requires_nonzero() {
+    let (mut g, [x]) = create_graph([0..=10]);
+
+    assert_eq!(simplify_cond(&mut g, Condition::Divides(x, x), END_INSTR), Condition::Neq(ValueId::C_ZERO, x));
+    assert_eq!(simplify_cond(&mut g, Condition::NotDivides(x, x), END_INSTR), Condition::Eq(ValueId::C_ZERO, x));
+}
+
+#[test]
+fn test_divides_mul_by_divisor_requires_nonzero_divisor() {
+    let (mut g, [x, divisor]) = create_graph([0..=10, 0..=10]);
+    let mul = g.value_numbering(OptOp::Mul, &[x, divisor], None, None);
+
+    assert_eq!(simplify_cond(&mut g, Condition::Divides(mul, divisor), END_INSTR), Condition::Neq(ValueId::C_ZERO, divisor));
+    assert_eq!(simplify_cond(&mut g, Condition::NotDivides(mul, divisor), END_INSTR), Condition::Eq(ValueId::C_ZERO, divisor));
 }
 
 #[test]
