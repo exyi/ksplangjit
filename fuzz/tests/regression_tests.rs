@@ -1155,3 +1155,9 @@ fn fuzz_simplify_cond_divisibility_excessive_complexity() {
     let ops = vec![ Qeq, DigitSum, Increment, Remainder, Increment, Pop2, DigitSum, Funkcia, Increment, Remainder, Increment, DigitSum, DigitSum, DigitSum, Increment, DigitSum, LenSum, DigitSum, DigitSum, Remainder, Goto ];
     verify_repro_const(ops, vec![7016996765293429052, 7016996765293437281, 7017137502781792609, 7016996765293437281, 7016996765293437281, 7016996765293437281, 7016996765293437281, 4685431781059551585, 1640697037182, 3098242164056260359, -252908026138590850, 3010128], vec![220397031095216128, -74309393868178941, -32932572157706240]);
 }
+
+#[test]
+fn fuzz_slow_assumption_dedup() {
+    let ops = vec![ DigitSum, DigitSum, BranchIfZero, Median, Increment, Modulo, Increment, DigitSum, DigitSum, LenSum, Increment, DigitSum, LenSum, Increment, DigitSum, DigitSum, LenSum, Max, Max, DigitSum, DigitSum, LenSum, Call, Universal, Increment, Max, Max, Max, Max, Max, Max, Max, Max, Max, Max, Max, Max, Max ];
+    verify_repro_const(ops, vec![-2170202986119044639], vec![-1, -3204448257, 72039898187890687, 549755813854724, 2387225703656530209, 2384129478912712993, 2387225703656530209, 2387225703656530209, -2170202986119093983, -46686220937263135]);
+}

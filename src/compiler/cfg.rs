@@ -9,6 +9,8 @@ use rustc_hash::{FxHashMap as Map};
 #[cfg(not(debug_assertions))]
 use std::collections::{hash_map::Entry as MapEntry};
 
+use crate::compiler::analyzer::cond_implies;
+
 use super::prelude::*;
 use super::{config::{JitConfig, get_config}, ops::{BeforeOrAfter}, simplifier::simplify_cond, utils::{Annotations, NumFmt, RangeFmt}};
 
@@ -825,7 +827,14 @@ impl GraphBuilder {
             // nothing would be gained
             return;
         }
-        // TODO: replace last if it's strictly weaker
+        // previous is stronger, ignore
+        if self.values[&val].assumptions.iter().any(|(prev_cond, prev_start, prev_end, prev_at)|
+            prev_at.block_id() == at.block_id() && prev_at.instr_ix() <= at.instr_ix() &&
+            cond_implies(self, prev_cond, &cond2, at) == Some(Condition::True) &&
+            prev_start <= range.start() && prev_end >= range.end()
+        ) {
+            return;
+        }
         let info = self.values.get_mut(&val).unwrap();
         info.assumptions.push((cond2, *range.start(), *range.end(), at));
     }
