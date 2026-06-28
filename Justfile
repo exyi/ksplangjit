@@ -2,7 +2,7 @@ set positional-arguments
 set shell := ["bash", "-c"]
 
 @test *ARGS:
-	KSPLANGJIT_TRIGGER_COUNT=3 KSPLANGJIT_CHEAT=0 cargo test --workspace {{ARGS}}
+	KSPLANGJIT_TRIGGER_COUNT=3 KSPLANGJIT_CHEAT=0 cargo test --workspace --no-fail-fast {{ARGS}}
 
 @test-combi *ARGS:
 	set -x
