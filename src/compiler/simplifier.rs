@@ -250,6 +250,19 @@ fn simplify_cond_core(cfg: &mut GraphBuilder, condition: &Condition<ValueId>, at
                         }
                     }
 
+                    if condition.is_eq_neq() && matches!(def.op, OptOp::Min | OptOp::Max) {
+                        let mut possible_inputs = def.inputs.iter().filter(|input|
+                            cfg.val_range_at(**input, at).contains(&ac)
+                        );
+                        let Some(input) = possible_inputs.next() else {
+                            return Condition::False.neg_if(condition.is_neq())
+                        };
+                        if possible_inputs.next().is_none() {
+                            // only one input is in this range
+                            return condition.replace_arr([a, *input])
+                        }
+                    }
+
                     if ac == 0 && matches!(def.op, OptOp::DigitSum) {
                         let b2 = def.inputs[0];
                         // DigitSum preserves zero, some programs use this when branching

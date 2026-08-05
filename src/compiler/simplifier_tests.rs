@@ -35,6 +35,47 @@ fn test_mod_with_input_range_below_modulus_is_input() {
     assert_eq!(m, a);
 }
 
+fn assert_not_simplified(g: &mut GraphBuilder, c: Condition<ValueId>) {
+    let at = InstrId(g.current_block, u32::MAX);
+    assert_eq!(c, simplify_cond(g, c.clone(), at), "Condition {c} should not have been simplified. CFG:\n{g}");
+}
+
+#[test]
+fn test_repeated_select_input_constant_propagation() {
+    let (mut g, [a]) = create_graph([0..=1]);
+    let condition = Condition::Eq(ValueId::C_ZERO, a);
+    let selected = g.push_instr(OptOp::Select(condition.clone()), &[ValueId::C_ONE, ValueId::C_TWO], false, None, None).0;
+    let square = g.push_instr(OptOp::Mul, &[selected, selected], false, None, None).0;
+    let square_instr = g.get_defined_at(square).unwrap();
+
+    assert_eq!(square_instr.op, OptOp::Select(condition.neg()));
+    assert_eq!(square_instr.inputs.as_slice(), &[ValueId::C_FOUR, ValueId::C_ONE]);
+}
+
+#[test]
+fn test_min_max_equality_ignores_irrelevant_inputs() {
+    let (mut g, [a, b]) = create_graph([0..=100, 40..=50]);
+    let c13 = g.store_constant(13);
+    let c60 = g.store_constant(60);
+    let min = g.push_instr(OptOp::Min, &[a, b], false, None, None).0;
+    let max = g.push_instr(OptOp::Max, &[a, b], false, None, None).0;
+
+    for (condition, expected) in [
+        (Condition::Eq(c13, max), Condition::False),
+        (Condition::Eq(c13, min), Condition::Eq(c13, a)),
+        (Condition::Neq(c13, min), Condition::Neq(c13, a)),
+        (Condition::Eq(c60, min), Condition::False),
+        (Condition::Eq(c60, max), Condition::Eq(c60, a)),
+        (Condition::Neq(c60, max), Condition::Neq(c60, a)),
+    ] {
+        assert_eq!(simplify_cond(&mut g, condition, END_INSTR), expected);
+    }
+
+    let c100 = g.store_constant(100);
+    g.add_assumption_simple(InstrId(BlockId(0), 10), Condition::Neq(c100, a), false);
+    assert_eq!(simplify_cond(&mut g, Condition::Neq(c100, max), END_INSTR), Condition::True);
+    assert_eq!(simplify_cond(&mut g, Condition::Eq(c100, max), END_INSTR), Condition::False);
+}
 #[test]
 fn test_ksplang_ops_increment_same_condition_merge() {
     let (mut g, [a, b, c]) = create_graph([0..=100, 0..=100, 0..=100]);
