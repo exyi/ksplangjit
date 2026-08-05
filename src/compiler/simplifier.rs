@@ -663,6 +663,13 @@ fn simplify_cond_core(cfg: &mut GraphBuilder, condition: &Condition<ValueId>, at
             if a.is_constant() {
                 let ac = *ar.start();
                 let abs_a = ac.unsigned_abs();
+                if abs_a == 2 && !br.contains(&0) {
+                    // -2, -1, 1, 2 are only divisors
+                    return if *br.end() > 0 { Condition::Geq(ValueId::C_TWO, b) } else { Condition::Leq(ValueId::C_NEG_TWO, b) }
+                }
+                if abs_a % 2 == 0 && *bra.end() <= 2 {
+                    return Condition::Neq(ValueId::C_ZERO, b);
+                }
                 if range_is_signless(&br) {
                     if abs_a == 1 {
                         // 1 % x == 0  =>  1 == x or -1 == x

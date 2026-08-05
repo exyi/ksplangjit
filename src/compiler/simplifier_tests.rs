@@ -335,6 +335,15 @@ fn test_divides_simplification_2to4_3() { // used in duplication
 }
 
 #[test]
+fn test_one_or_two_divides_two() {
+    let (mut g, [positive, negative, maybe_zero]) = create_graph([1..=2, -2..=-1, 0..=2]);
+
+    assert_eq!(simplify_cond(&mut g, Condition::Divides(ValueId::C_TWO, positive), END_INSTR), Condition::True);
+    assert_eq!(simplify_cond(&mut g, Condition::Divides(ValueId::C_TWO, negative), END_INSTR), Condition::True);
+    assert_eq!(simplify_cond(&mut g, Condition::Divides(ValueId::C_TWO, maybe_zero), END_INSTR), Condition::Neq(ValueId::C_ZERO, maybe_zero));
+}
+
+#[test]
 fn test_divides_same_value_requires_nonzero() {
     let (mut g, [x]) = create_graph([0..=10]);
 
@@ -781,4 +790,3 @@ fn test_cs_const_offset() {
     assert!(P::op2(OptOp::Add, b, -1000_107).try_match(&g, &[b_cs]).is_ok());
     assert!(P::op2(OptOp::Sub, -117, c).try_match(&g, &[c_cs]).is_ok());
 }
-
