@@ -205,7 +205,11 @@ pub fn dataflow<T: PartialEq>(
 
 pub fn get_max_instructions_executed(g: &GraphBuilder) -> u64 {
     let block_count: Vec<i64> = g.blocks.iter().map(|b| {
-        let base = b.ksplang_instr_count as i64;
+        let base = b.instructions.values().filter(|i| matches!(i.op, OptOp::Checkpoint))
+                                          .map(|i| i.ksp_instr_count)
+                                          .max()
+                                          .unwrap_or(0)
+                                          .max(b.ksplang_instr_count) as i64;
         let inc = b.instructions.values().filter(|i| matches!(i.op, OptOp::KsplangOpsIncrement(_)))
                                          .map(|i| i.inputs.iter()
                                                           .map(|val| *g.val_range_at(*val, i.id).end())
@@ -220,4 +224,22 @@ pub fn get_max_instructions_executed(g: &GraphBuilder) -> u64 {
     );
 
     return cmp::max(0, *df.values().max().unwrap()) as u64;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn max_instructions_includes_hoisted_checkpoint_count() {
+        let mut g = GraphBuilder::new(0);
+        let increment = g.new_value();
+        increment.range = 0..=3;
+        let increment = increment.id;
+        g.current_block_mut().ksplang_instr_count = 10;
+        g.push_instr(OptOp::KsplangOpsIncrement(Condition::True), &[increment], false, None, None);
+        g.push_checkpoint().unwrap().ksp_instr_count = 20;
+
+        assert_eq!(get_max_instructions_executed(&g), 23);
+    }
 }
