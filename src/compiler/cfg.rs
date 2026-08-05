@@ -1419,7 +1419,12 @@ impl GraphBuilder {
             let c = self.get_constant_(v);
             return (v, c..=c);
         }
-        let Some(info) = self.values.get(&v) else { return (v, FULL_RANGE) };
+        let Some(info) = self.values.get(&v) else {
+            if let Some(replaced) = self.replaced_values.get(&v) {
+                return self.analyze_val_at_impl(*replaced, at, depth)
+            }
+            return (v, FULL_RANGE)
+        };
         if at != InstrId::default() {
             let from_range =
                 if depth < Self::MAX_ANALYZE_DEPTH &&
