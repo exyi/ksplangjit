@@ -831,7 +831,7 @@ impl GraphBuilder {
         if self.values[&val].assumptions.iter().any(|(prev_cond, prev_start, prev_end, prev_at)|
             prev_at.block_id() == at.block_id() && prev_at.instr_ix() <= at.instr_ix() &&
             cond_implies(self, prev_cond, &cond2, at) == Some(Condition::True) &&
-            prev_start <= range.start() && prev_end >= range.end()
+            prev_start >= range.start() && prev_end <= range.end()
         ) {
             return;
         }

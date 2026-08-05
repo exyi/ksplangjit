@@ -76,6 +76,21 @@ fn test_min_max_equality_ignores_irrelevant_inputs() {
     assert_eq!(simplify_cond(&mut g, Condition::Neq(c100, max), END_INSTR), Condition::True);
     assert_eq!(simplify_cond(&mut g, Condition::Eq(c100, max), END_INSTR), Condition::False);
 }
+
+#[test]
+fn test_duplicate_deopt_assert_is_eliminated() {
+    let (mut g, [a]) = create_graph([9..=17]);
+    let c16 = g.store_constant(16);
+    let c17 = g.store_constant(17);
+    let condition = Condition::Neq(c17, a);
+
+    g.push_deopt_assert(Condition::Neq(c16, a), false);
+    g.push_deopt_assert(condition.clone(), false);
+    g.push_deopt_assert(condition, false);
+
+    assert_eq!(g.current_block_ref().instructions.values().filter(|instr| matches!(instr.op, OptOp::DeoptAssert(_))).count(), 2, "{g}");
+}
+
 #[test]
 fn test_ksplang_ops_increment_same_condition_merge() {
     let (mut g, [a, b, c]) = create_graph([0..=100, 0..=100, 0..=100]);
