@@ -1187,7 +1187,7 @@ pub fn simplify_instr(cfg: &mut GraphBuilder, mut i: OptInstr, opt: InstrSimplOp
             // if one variable is select(?, const1, const2), make this one also select of constants
             if let Some(variable) = i.inputs.iter().find(|v| !v.is_constant()) &&
                 i.op.condition().is_none() &&
-                i.inputs.iter().filter(|v| !v.is_constant()).count() == 1 &&
+                i.inputs.iter().filter(|v| !v.is_constant()).all(|v| v == variable) &&
                 let Some(var_info) = cfg.values.get(variable) &&
                 let Some(select) = var_info.assigned_at.and_then(|iid| cfg.get_instruction(iid)) &&
                 let OptOp::Select(select_condition) = &select.op &&
