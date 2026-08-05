@@ -4,6 +4,7 @@ use num_integer::Roots;
 
 use super::prelude::*;
 use super::{analyzer::cond_implies, pattern::OptOptPattern, range_ops::{mod_split_ranges, range_pow_const, range_signum}, utils::{all_equal, range_is_signless}};
+use crate::compiler::range_ops::range_num_digits;
 use crate::{digit_sum::{evaluate_constant_propagation_feasibility}, vm};
 
 use super::pattern::{OptOptPattern as P};
@@ -1814,6 +1815,43 @@ pub fn simplify_instr(cfg: &mut GraphBuilder, mut i: OptInstr, opt: InstrSimplOp
                     i.op = OptOp::Add;
                 }
                 continue;
+            }
+
+            OptOp::LenSum => {
+                let a = i.inputs[0];
+                let b = i.inputs[1];
+                let ar = range_num_digits(&ranges[0]);
+                let br = range_num_digits(&ranges[1]);
+                if ar.start() == ar.end() && a.is_computed() {
+                    i.inputs[0] = cfg.store_constant(10i64.strict_pow(*ar.start() as u32 - 1));
+                    continue
+                }
+                if br.start() == br.end() && b.is_computed() {
+                    i.inputs[1] = cfg.store_constant(10i64.strict_pow(*br.start() as u32 - 1));
+                    continue
+                }
+                if a.is_constant() && br.clone().count() <= 2 {
+                    println!("Simplifying {i} [{ranges:?} -> {br:?}] at {cfg}");
+                    debug_assert!(br.clone().count() == 2);
+                    let select = smallvec![cfg.store_constant(ar.start() + br.start()), cfg.store_constant(ar.start() + br.end())];
+                    i.inputs = select;
+                    if br.contains(&0) {
+                        debug_assert!(ranges[1].start().abs().max(ranges[1].end().abs()) < 10);
+                        i.op = OptOp::Select(Condition::Eq(ValueId::C_ZERO, b));
+                        println!("Simplified to {i}");
+                        continue;
+                    } else {
+                        debug_assert!(range_is_signless(&ranges[1]) && *ranges[1].start() != 0);
+                        let boundary = cfg.store_constant(ranges[1].start().signum() * 10i64.pow(*br.start() as u32));
+                        i.op = OptOp::Select(if *ranges[1].start() >= 0 {
+                            Condition::Gt(boundary, b) // 100 > b ? 5 : 6
+                        } else {
+                            Condition::Lt(boundary, b)
+                        });
+                        println!("Simplified to {i}");
+                        continue;
+                    }
+                }
             }
 
             _ => { }

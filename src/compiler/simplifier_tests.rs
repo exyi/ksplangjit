@@ -35,6 +35,18 @@ fn test_mod_with_input_range_below_modulus_is_input() {
     assert_eq!(m, a);
 }
 
+#[test]
+fn test_lensum_two_digit_negative_range() {
+    let (mut g, [b]) = create_graph([-11..=-1]);
+    let negative_ten = g.store_constant(-10);
+
+    let lensum = g.push_instr(OptOp::LenSum, &[ValueId::C_ONE, b], false, None, None).0;
+    let lensum = g.get_defined_at(lensum).unwrap();
+
+    assert_eq!(lensum.op, OptOp::Select(Condition::Geq(negative_ten, b)), "{g}");
+    assert_eq!(lensum.inputs.as_slice(), &[ValueId::C_THREE, ValueId::C_TWO], "{g}");
+}
+
 fn assert_not_simplified(g: &mut GraphBuilder, c: Condition<ValueId>) {
     let at = InstrId(g.current_block, u32::MAX);
     assert_eq!(c, simplify_cond(g, c.clone(), at), "Condition {c} should not have been simplified. CFG:\n{g}");

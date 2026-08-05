@@ -192,12 +192,7 @@ pub fn range_2_i64_neg(r: RangeInclusive<u64>) -> RangeInclusive<i64> {
 }
 
 pub fn range_num_digits(r: &RangeInclusive<i64>) -> RangeInclusive<i64> {
-    let max = cmp::max(r.start().abs_diff(0), r.end().abs_diff(0));
-    let min = if *r.start() <= 0 && *r.end() >= 0 {
-        0
-    } else {
-        cmp::min(r.start().abs_diff(0), r.end().abs_diff(0))
-    };
+    let (min, max) = abs_range(r).into_inner();
 
     vm::decimal_len(u64neg(min))..=vm::decimal_len(u64neg(max))
 }
