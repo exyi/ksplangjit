@@ -34,7 +34,7 @@ fuzz_target!(|data: FuzzInput| {
     if data.program.is_empty() || data.input.is_empty() { return }
 
     if data.trace_input.is_empty() {
-        data.input = data.trace_input.clone();
+        data.trace_input = data.input.clone();
     }
 
     let ops = data.program.iter().map(|op| op.0).collect::<Vec<_>>();

@@ -2,7 +2,6 @@ use super::prelude::*;
 use super::{
     cfg_interpreter, osmibytecode::OsmibytecodeBlock, osmibytecode_vm::{self, ExitPointId, RegFile}, precompiler::{NoTrace, Precompiler}
 };
-use crate::compiler::config::get_config;
 use crate::vm::{self, OptimizingVM, VMOptions, RunError};
 use crate::ops::Op;
 
@@ -195,14 +194,15 @@ fn verify_repro_core(r: ReproData) -> (GraphBuilder, OsmibytecodeBlock) {
 /// Runs the program + input in a the OptimizingVM
 pub fn verify_vm_repro(ops: Vec<Op>, trace_input: Vec<i64>, input: Vec<i64>) {
     let mut opt_vm = OptimizingVM::new(ops.clone(), true);
+    opt_vm.conf.start_instr_limit = 0;
 
     let max_ops = 20_000;
     let max_stack = cmp::max(1000, input.len() + 100);
 
-    for _ in 0..=get_config().trace_trigger_count + 1 {
+    for _ in 0..=opt_vm.conf.trace_trigger_count + 1 {
         let options = VMOptions::new(&trace_input, max_stack, &PI_TEST_VALUES, max_ops, u64::MAX);
-        let r = opt_vm.run(trace_input.clone(), options);
-        // assert!(!matches!(r, Err(RunError::StackOverflow)));
+        let _r = opt_vm.run(trace_input.clone(), options);
+        // assert!(!matches!(_r, Err(RunError::StackOverflow)));
     }
 
     let options = VMOptions::new(&input, max_stack, &PI_TEST_VALUES, max_ops, u64::MAX);
@@ -220,4 +220,3 @@ pub fn verify_vm_repro(ops: Vec<Op>, trace_input: Vec<i64>, input: Vec<i64>) {
         (opt, reference) => panic!("OptimizingVM mismatch: {opt:?} != {reference:?}"),
     }
 }
-

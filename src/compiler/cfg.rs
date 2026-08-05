@@ -25,6 +25,7 @@ use super::{config::{JitConfig, get_config}, ops::{BeforeOrAfter}, simplifier::s
 // }
 
 const INSTR_ID_STEP: u32 = 10;
+const SIMPLIFICATION_PUSH_INSTR_LIMIT: usize = 128;
 
 type AssumptionDump = BTreeMap<InstrId, Vec<(ValueId, Condition<ValueId>, i64, i64)>>;
 
@@ -284,6 +285,7 @@ pub struct GraphBuilder {
     pub assumed_program_position: Option<usize>,
     pub instr_simplification_stack_debug: Vec<OptInstr>,
     pub instr_simplification_depth: usize,
+    pub instr_simplification_start_push_count: usize,
     pub push_instr_called: usize,
     pub conf: &'static JitConfig
 }
@@ -305,6 +307,7 @@ impl GraphBuilder {
             assumed_program_position: None,
             instr_simplification_stack_debug: vec![],
             instr_simplification_depth: 0,
+            instr_simplification_start_push_count: 0,
             push_instr_called: 0,
             conf: get_config()
         }
@@ -846,6 +849,9 @@ impl GraphBuilder {
 
     pub fn push_instr(&mut self, op: OptOp<ValueId>, args: &[ValueId], value_numbering: bool, out_range: Option<RangeInclusive<i64>>, effect: Option<OpEffect>) -> (ValueId, Option<&mut OptInstr>) {
         self.push_instr_called += 1;
+        if self.instr_simplification_depth == 0 {
+            self.instr_simplification_start_push_count = self.push_instr_called;
+        }
         if self.current_block_ref().is_terminated {
             return (ValueId(0), None);
         }
@@ -893,7 +899,9 @@ impl GraphBuilder {
         }
         self.instr_simplification_depth += 1;
         let (mut instr, simplifier_range) = simplifier::simplify_instr(self, instr, simplifier::InstrSimplOpt {
-            allow_push_instr: self.instr_simplification_depth < 20,
+            allow_push_instr: self.instr_simplification_depth < 20 &&
+                              self.push_instr_called - self.instr_simplification_start_push_count <
+                                  SIMPLIFICATION_PUSH_INSTR_LIMIT,
             ..Default::default()
         });
         self.instr_simplification_depth -= 1;

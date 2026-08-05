@@ -1553,13 +1553,13 @@ pub struct OptimizingVM {
     program: Vec<Op>,
     allow_deez: bool,
     opt: Optimizer,
-    conf: &'static compiler::config::JitConfig,
+    pub conf: compiler::config::JitConfig,
     obc_regs: osmibytecode_vm::RegFile
 }
 
 impl OptimizingVM {
     pub fn new(program: Vec<Op>, allow_deez: bool) -> Self {
-        let conf = compiler::config::get_config();
+        let conf = compiler::config::get_config().clone();
         let opt = Optimizer {
             trigger_count: conf.trace_trigger_count,
             ..Optimizer::default()
@@ -1574,6 +1574,7 @@ impl OptimizingVM {
         let program_len = self.program.len();
         let mut s: State<Optimizer> = State::new(opt.max_stack_size, opt.pi_digits, self.program.to_vec(), input_stack, Optimizer::default());
         s.tracer = mem::take(&mut self.opt);
+        s.tracer.trigger_count = self.conf.trace_trigger_count;
         self.optimize_start(&mut s, &opt);
 
         let (s, result) = self.run_internal(s, &opt);
@@ -1861,6 +1862,10 @@ impl OptimizingVM {
         // let limit = 50_000;
         let limit = self.conf.start_instr_limit as usize;
         if limit == 0 {
+            return;
+        }
+        if s.tracer.get_block(false, 0).is_some() {
+            // already ran
             return;
         }
         let mut p = Precompiler::new(&s.ops, s.stack.len(), s.reversed, s.ip, limit, self.conf.soften_limits, None, GraphBuilder::new(s.ip), NoTrace());
