@@ -1220,3 +1220,11 @@ fn fuzz_vm_stale_replaced_value_in_assumptions2() {
     let ops = vec![ DigitSum, Praise, DigitSum, BulkXor, Max, Max, Max, Max, Max, BulkXor, Increment, Jump, Increment, DigitSum, DigitSum, LSwap, DigitSum, LSwap, Increment, DigitSum, DigitSum, DigitSum, Funkcia, Qeq, DigitSum, DigitSum, LSwap, DigitSum, Increment, DigitSum, DigitSum, DigitSum, DigitSum, DigitSum, Increment, Increment, DigitSum, Gcd2, Goto ];
     verify_vm_repro(ops, vec![], vec![50]);
 }
+
+
+#[test]
+fn fuzz_vm_idk_probably_too_slow_or_something() {
+    let ops = vec![ DigitSum, DigitSum, LSwap, DigitSum, LSwap, Modulo, DigitSum, DigitSum, LSwap, Gcd2, DigitSum, DigitSum, LSwap, Max, BranchIfZero, Call ];
+    verify_vm_repro(ops, vec![], vec![255]);
+}
+

@@ -1721,7 +1721,8 @@ pub fn simplify_instr(cfg: &mut GraphBuilder, mut i: OptInstr, opt: InstrSimplOp
             }
 
             OptOp::KsplangOpsIncrement(condition)
-                if let Some(prev_inc) = try_find_previous_ops_increment(cfg.current_block_ref(), condition, |_| true) =>
+                if let Some(prev_inc) = try_find_previous_ops_increment(cfg.current_block_ref(), condition, |_| true) &&
+                   i.inputs.len() + prev_inc.inputs.len() <= 32 =>
             {
                 i.inputs.extend_from_slice(&prev_inc.inputs);
                 cfg.remove_instruction(prev_inc.id, false);

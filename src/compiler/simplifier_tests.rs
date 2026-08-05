@@ -121,6 +121,21 @@ fn test_ksplang_ops_increment_same_condition_merge() {
 }
 
 #[test]
+fn test_ksplang_ops_increment_merge_has_input_limit() {
+    let (mut g, [a]) = create_graph([0..=100]);
+
+    g.push_instr(OptOp::KsplangOpsIncrement(Condition::True), &[a; 32], false, None, None);
+    g.push_instr(OptOp::KsplangOpsIncrement(Condition::True), &[a], false, None, None);
+
+    let incs = g.current_block_ref().instructions.values()
+        .filter(|instr| matches!(instr.op, OptOp::KsplangOpsIncrement(_)))
+        .collect::<Vec<_>>();
+    assert_eq!(incs.len(), 2, "{g}");
+    assert_eq!(incs[0].inputs.len(), 32);
+    assert_eq!(incs[1].inputs.as_slice(), &[a]);
+}
+
+#[test]
 fn test_ksplang_ops_increment_merge_stops_at_checkpoint() {
     let (mut g, [a, b, c]) = create_graph([0..=100, 0..=100, 0..=100]);
     let cond = Condition::Eq(a, b);
