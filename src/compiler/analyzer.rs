@@ -112,6 +112,34 @@ pub fn interesting_implications(g: &mut GraphBuilder, cond: &Condition<ValueId>,
                     _ => {}
                 }
             }
+
+            let used_at = g.val_info(*b).map(|info|
+                info.used_at.iter().copied().collect::<SmallVec<[InstrId; 4]>>()
+            ).unwrap_or_default();
+            for used_at in used_at {
+                if used_at.block_id() == at.block_id() {
+                    if used_at.instr_ix() >= at.instr_ix() {
+                        continue
+                    }
+                } else if !used_at.block_id().is_first_block() &&
+                    !g.block_(at.block_id()).predecessors.contains(&used_at.block_id())
+                {
+                    continue
+                }
+
+                let linked = g.get_instruction_(used_at);
+
+                // usually doesn't make sense to propagate through instructions with len(computed inputs)=1,
+                // as for those val_range_at re-computed the ranges
+                let num_computed = linked.inputs.iter().filter(|i| i.is_computed()).count();
+                match (&linked.op, cond) {
+                    (OptOp::Min, Eq(_, _) | Geq(_, _)) if num_computed >= 2 => r.push(Geq(*con, linked.out)),
+                    (OptOp::Min, Gt(_, _)) if num_computed >= 2 => r.push(Gt(*con, linked.out)),
+                    (OptOp::Max, Eq(_, _) | Leq(_, _)) if num_computed >= 2 => r.push(Leq(*con, linked.out)),
+                    (OptOp::Max, Lt(_, _)) if num_computed >= 2 => r.push(Lt(*con, linked.out)),
+                    _ => {}
+                }
+            }
         }
 
         &Divides(x, div) => {

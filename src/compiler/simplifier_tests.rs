@@ -90,6 +90,38 @@ fn test_min_max_equality_ignores_irrelevant_inputs() {
 }
 
 #[test]
+fn test_min_max_input_assumptions_update_result_range() {
+    let (mut g, [a, b]) = create_graph([0..=100, 0..=100]);
+    let max = g.push_instr(OptOp::Max, &[a, b], false, None, None).0;
+    let at = g.next_instr_id();
+    g.add_assumption_simple(at, Condition::Eq(ValueId::C_ONE, b), false);
+
+    assert_eq!(g.val_range_at(max, END_INSTR), 1..=100);
+    assert_eq!(simplify_cond(&mut g, Condition::Eq(ValueId::C_ZERO, max), END_INSTR), Condition::False);
+
+    let (mut g, [a, b]) = create_graph([-100..=0, -100..=0]);
+    let min = g.push_instr(OptOp::Min, &[a, b], false, None, None).0;
+    let at = g.next_instr_id();
+    let negative_one = g.store_constant(-1);
+    g.add_assumption_simple(at, Condition::Eq(negative_one, b), false);
+
+    assert_eq!(g.val_range_at(min, END_INSTR), -100..=-1);
+    assert_eq!(simplify_cond(&mut g, Condition::Eq(ValueId::C_ZERO, min), END_INSTR), Condition::False);
+}
+
+#[test]
+fn test_min_does_not_inherit_input_lower_bound() {
+    let (mut g, [x, y]) = create_graph([0..=10, 0..=10]);
+    let min = g.push_instr(OptOp::Min, &[x, y], false, None, None).0;
+    let max = g.push_instr(OptOp::Max, &[x, y], false, None, None).0;
+    let at = g.next_instr_id();
+    g.add_assumption_simple(at, Condition::Lt(ValueId::C_FIVE, x), false);
+
+    assert_eq!(g.val_range_at(min, END_INSTR), 0..=10);
+    assert_eq!(g.val_range_at(max, END_INSTR), 6..=10);
+}
+
+#[test]
 fn test_duplicate_deopt_assert_is_eliminated() {
     let (mut g, [a]) = create_graph([9..=17]);
     let c16 = g.store_constant(16);

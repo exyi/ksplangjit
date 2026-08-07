@@ -21,9 +21,25 @@ set shell := ["bash", "-c"]
 		awk -F'\t' '$7 != 0 {print "FAILED (exit " $7 "): " $9}' run.log
 		exit 1
 	else
-		echo "OK"
+		echo "fuzz_target_2 OK"
+	fi
+	if ! find fuzz/artifacts/fuzz_target_3 -type f | rg 'crash-' | KSPLANGJIT_VERBOSITY=0 parallel -X -j24 --joblog run.log --bar -n 1 "target/x86_64-unknown-linux-gnu/release/fuzz_target_3 {} -runs=0 &> /dev/null"; then
+		awk -F'\t' '$7 != 0 {print "FAILED (exit " $7 "): " $9}' run.log
+		exit 1
+	else
+		echo "fuzz_target_3 OK"
 	fi
 	# find fuzz/artifacts/fuzz_target_1 -type f | rg 'crash-' | KSPLANGJIT_VERBOSITY=0 parallel -X -j24 --joblog run.log --bar -n 1 "target/x86_64-unknown-linux-gnu/release/fuzz_target_1 {} -runs=0 &> /dev/null"
+
+@ftest-check-timeouts *ARGS:
+	#!/usr/bin/env bash
+	cargo +nightly fuzz build --codegen-units 16 --sanitizer none
+	if ! find fuzz/artifacts/fuzz_target_2 -type f | rg 'oom-|slow-unit-' | KSPLANGJIT_VERBOSITY=0 parallel -X -j24 --joblog run.log --bar -n 1 "target/x86_64-unknown-linux-gnu/release/fuzz_target_2 {} -runs=0 &> /dev/null"; then
+		awk -F'\t' '$7 != 0 {print "FAILED (exit " $7 "): " $9}' run.log
+		exit 1
+	else
+		echo "OK"
+	fi
 
 @ftest-corpus *ARGS:
 	cargo +nightly fuzz build --codegen-units 16 --sanitizer none

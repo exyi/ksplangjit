@@ -252,9 +252,14 @@ fn simplify_cond_core(cfg: &mut GraphBuilder, condition: &Condition<ValueId>, at
                     }
 
                     if condition.is_eq_neq() && matches!(def.op, OptOp::Min | OptOp::Max) {
-                        let mut possible_inputs = def.inputs.iter().filter(|input|
-                            cfg.val_range_at(**input, at).contains(&ac)
-                        );
+                        let mut possible_inputs = def.inputs.iter().filter(|input| {
+                            let r = cfg.val_range_at(**input, at);
+                            if matches!(def.op, OptOp::Min) {
+                                *r.start() <= ac
+                            } else {
+                                *r.end() >= ac
+                            }
+                        });
                         let Some(input) = possible_inputs.next() else {
                             return Condition::False.neg_if(condition.is_neq())
                         };
